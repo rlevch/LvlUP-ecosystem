@@ -1,0 +1,201 @@
+{
+  "main": {
+    "id": "033246564cf060b8",
+    "type": "split",
+    "children": [
+      {
+        "id": "5ca070e0c5a85ebf",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "6f5a392c8c9535ff",
+            "type": "leaf",
+            "state": {
+              "type": "markdown",
+              "state": {
+                "file": "architecture.md",
+                "mode": "source",
+                "source": false
+              },
+              "icon": "lucide-file",
+              "title": "architecture"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "vertical"
+  },
+  "left": {
+    "id": "002b9c92012e4bbb",
+    "type": "split",
+    "children": [
+      {
+        "id": "ae8a9089650c376d",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "579afa396e8cdcdf",
+            "type": "leaf",
+            "state": {
+              "type": "file-explorer",
+              "state": {
+                "sortOrder": "alphabetical",
+                "autoReveal": false
+              },
+              "icon": "lucide-folder-closed",
+              "title": "Файловый менеджер"
+            }
+          },
+          {
+            "id": "23d2b5956a4b0b6a",
+            "type": "leaf",
+            "state": {
+              "type": "search",
+              "state": {
+                "query": "",
+                "matchingCase": false,
+                "explainSearch": false,
+                "collapseAll": false,
+                "extraContext": false,
+                "sortOrder": "alphabetical"
+              },
+              "icon": "lucide-search",
+              "title": "Поиск"
+            }
+          },
+          {
+            "id": "37e857496af20bb6",
+            "type": "leaf",
+            "state": {
+              "type": "bookmarks",
+              "state": {},
+              "icon": "lucide-bookmark",
+              "title": "Закладки"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "horizontal",
+    "width": 300
+  },
+  "right": {
+    "id": "258f5554eafa5887",
+    "type": "split",
+    "children": [
+      {
+        "id": "ae0e1d0f31ea15a3",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "a3122d29ead3cc50",
+            "type": "leaf",
+            "state": {
+              "type": "backlink",
+              "state": {
+                "file": "roadmap.md",
+                "collapseAll": false,
+                "extraContext": false,
+                "sortOrder": "alphabetical",
+                "showSearch": false,
+                "searchQuery": "",
+                "backlinkCollapsed": false,
+                "unlinkedCollapsed": true
+              },
+              "icon": "links-coming-in",
+              "title": "Обратные ссылки для roadmap"
+            }
+          },
+          {
+            "id": "7f801d54e53c8154",
+            "type": "leaf",
+            "state": {
+              "type": "outgoing-link",
+              "state": {
+                "file": "roadmap.md",
+                "linksCollapsed": false,
+                "unlinkedCollapsed": true
+              },
+              "icon": "links-going-out",
+              "title": "Исходящие ссылки из roadmap"
+            }
+          },
+          {
+            "id": "8fd11648a5b9d265",
+            "type": "leaf",
+            "state": {
+              "type": "tag",
+              "state": {
+                "sortOrder": "frequency",
+                "useHierarchy": true,
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-tags",
+              "title": "Теги"
+            }
+          },
+          {
+            "id": "34c00e80b2332f14",
+            "type": "leaf",
+            "state": {
+              "type": "all-properties",
+              "state": {
+                "sortOrder": "frequency",
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-archive",
+              "title": "Все свойства"
+            }
+          },
+          {
+            "id": "ae204f981b910c18",
+            "type": "leaf",
+            "state": {
+              "type": "outline",
+              "state": {
+                "file": "roadmap.md",
+                "followCursor": false,
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-list",
+              "title": "Структура roadmap"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "horizontal",
+    "width": 300,
+    "collapsed": true
+  },
+  "left-ribbon": {
+    "hiddenItems": {
+      "switcher:Меню быстрого перехода": false,
+      "graph:Граф": false,
+      "canvas:Создать новый холст": false,
+      "daily-notes:Сегодняшняя заметка": false,
+      "templates:Вставить шаблон": false,
+      "command-palette:Открыть палитру команд": false,
+      "bases:Создать новую базу": false
+    }
+  },
+  "active": "6f5a392c8c9535ff",
+  "lastOpenFiles": [
+    "roadmap.md",
+    "architecture.md",
+    "score-coaching/infrastructure/postgres/supabase/05-webhooks.sql",
+    "score-coaching/infrastructure/postgres/supabase/04-logs.sql",
+    "score-coaching/infrastructure/postgres/supabase/03-_supabase.sql",
+    "score-coaching/infrastructure/postgres/supabase/02-realtime.sql",
+    "score-coaching/infrastructure/postgres/supabase/01-jwt.sql",
+    "score-coaching/infrastructure/postgres/supabase/00-roles.sql",
+    "score-coaching/infrastructure/postgres/supabase",
+    "score-coaching/DEPLOYMENT_GUIDE_SELECTEL.docx",
+    "score-coaching/DEPLOYMENT_GUIDE.docx",
+    "score-coaching/infrastructure/scripts/setup-vps2-media.sh"
+  ]
+}
