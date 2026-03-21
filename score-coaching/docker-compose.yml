@@ -1,0 +1,506 @@
+# =============================================================================
+# SCORE Coaching Platform — Docker Compose (VPS #1: Core Services)
+# =============================================================================
+# Phase 0.1: Infrastructure & DevOps
+# Start: docker compose up -d
+# Logs:  docker compose logs -f [service]
+# =============================================================================
+
+x-common: &common
+  restart: unless-stopped
+  logging:
+    driver: json-file
+    options:
+      max-size: "10m"
+      max-file: "3"
+
+# ---------------------------------------------------------------------------
+# Volumes
+# ---------------------------------------------------------------------------
+volumes:
+  postgres_data:
+    driver: local
+  minio_data:
+    driver: local
+  redis_data:
+    driver: local
+  prometheus_data:
+    driver: local
+  grafana_data:
+    driver: local
+  certbot_www:
+    driver: local
+  certbot_conf:
+    driver: local
+
+# ---------------------------------------------------------------------------
+# Networks
+# ---------------------------------------------------------------------------
+networks:
+  score_net:
+    driver: bridge
+  monitoring_net:
+    driver: bridge
+
+# ---------------------------------------------------------------------------
+# Services
+# ---------------------------------------------------------------------------
+services:
+
+  # =========================================================================
+  # 1. Supabase PostgreSQL 15 — основная БД (официальный образ)
+  # =========================================================================
+  # ВАЖНО: используем supabase/postgres, не vanilla postgres:15-alpine
+  # Образ содержит все миграции Supabase: auth, storage, realtime, pgsodium, pg_net и т.д.
+  postgres:
+    <<: *common
+    image: supabase/postgres:15.8.1.085
+    container_name: score-postgres
+    ports:
+      - "127.0.0.1:5432:5432"
+    environment:
+      POSTGRES_HOST: /var/run/postgresql
+      PGPORT: 5432
+      POSTGRES_PORT: 5432
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?error}
+      POSTGRES_DB: ${POSTGRES_DB:-postgres}
+      JWT_SECRET: ${JWT_SECRET:?error}
+      JWT_EXP: ${JWT_EXP:-3600}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./infrastructure/postgres/postgresql.conf:/etc/postgresql/postgresql.conf:ro
+      # Supabase init scripts (порядок важен — числовые префиксы)
+      - ./infrastructure/postgres/supabase/00-roles.sql:/docker-entrypoint-initdb.d/00-roles.sql:ro
+      - ./infrastructure/postgres/supabase/01-jwt.sql:/docker-entrypoint-initdb.d/01-jwt.sql:ro
+      - ./infrastructure/postgres/supabase/02-realtime.sql:/docker-entrypoint-initdb.d/02-realtime.sql:ro
+      - ./infrastructure/postgres/supabase/03-_supabase.sql:/docker-entrypoint-initdb.d/03-_supabase.sql:ro
+      - ./infrastructure/postgres/supabase/04-logs.sql:/docker-entrypoint-initdb.d/04-logs.sql:ro
+      - ./infrastructure/postgres/supabase/05-webhooks.sql:/docker-entrypoint-initdb.d/05-webhooks.sql:ro
+      # SCORE business schemas (запускается после Supabase init)
+      - ./infrastructure/postgres/init.sql:/docker-entrypoint-initdb.d/10-score-init.sql:ro
+    command: postgres -c config_file=/etc/postgresql/postgresql.conf
+    networks:
+      - score_net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-postgres}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    shm_size: "256mb"
+
+  # =========================================================================
+  # 2. pgBouncer — connection pooler
+  # =========================================================================
+  pgbouncer:
+    <<: *common
+    image: bitnami/pgbouncer:1.21.0
+    container_name: score-pgbouncer
+    ports:
+      - "127.0.0.1:6432:6432"
+    environment:
+      PGBOUNCER_DATABASE: ${POSTGRES_DB:-postgres}
+      POSTGRESQL_HOST: postgres
+      POSTGRESQL_PORT: 5432
+      POSTGRESQL_USERNAME: ${POSTGRES_USER:-postgres}
+      POSTGRESQL_PASSWORD: ${POSTGRES_PASSWORD:?error}
+      PGBOUNCER_PORT: 6432
+      PGBOUNCER_POOL_MODE: transaction
+      PGBOUNCER_MAX_CLIENT_CONN: 200
+      PGBOUNCER_DEFAULT_POOL_SIZE: 20
+      PGBOUNCER_MIN_POOL_SIZE: 5
+      PGBOUNCER_RESERVE_POOL_SIZE: 5
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - score_net
+
+  # =========================================================================
+  # 3. Supabase GoTrue — аутентификация
+  # =========================================================================
+  gotrue:
+    <<: *common
+    image: supabase/gotrue:v2.186.0
+    container_name: score-gotrue
+    ports:
+      - "127.0.0.1:9999:9999"
+    environment:
+      GOTRUE_API_HOST: 0.0.0.0
+      GOTRUE_API_PORT: 9999
+      API_EXTERNAL_URL: ${API_EXTERNAL_URL:-http://localhost:9999}
+
+      GOTRUE_DB_DRIVER: postgres
+      GOTRUE_DB_DATABASE_URL: postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-postgres}?search_path=auth&sslmode=disable
+
+      GOTRUE_SITE_URL: ${SITE_URL:-http://localhost:5173}
+      GOTRUE_URI_ALLOW_LIST: ${ADDITIONAL_REDIRECT_URLS:-}
+      GOTRUE_DISABLE_SIGNUP: "false"
+
+      GOTRUE_JWT_SECRET: ${JWT_SECRET:?error}
+      GOTRUE_JWT_EXP: 3600
+      GOTRUE_JWT_DEFAULT_GROUP_NAME: authenticated
+
+      # Email (SMTP)
+      GOTRUE_SMTP_HOST: ${SMTP_HOST:-}
+      GOTRUE_SMTP_PORT: ${SMTP_PORT:-587}
+      GOTRUE_SMTP_USER: ${SMTP_USER:-}
+      GOTRUE_SMTP_PASS: ${SMTP_PASS:-}
+      GOTRUE_SMTP_ADMIN_EMAIL: ${SMTP_ADMIN_EMAIL:-noreply@score-coaching.ru}
+      GOTRUE_MAILER_AUTOCONFIRM: "false"
+
+      # External OAuth — VK ID
+      GOTRUE_EXTERNAL_VK_ENABLED: ${VK_AUTH_ENABLED:-false}
+      GOTRUE_EXTERNAL_VK_CLIENT_ID: ${VK_CLIENT_ID:-}
+      GOTRUE_EXTERNAL_VK_SECRET: ${VK_CLIENT_SECRET:-}
+      GOTRUE_EXTERNAL_VK_REDIRECT_URI: ${VK_REDIRECT_URI:-}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - score_net
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:9999/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  # =========================================================================
+  # 4. Supabase PostgREST — REST API для PostgreSQL
+  # =========================================================================
+  postgrest:
+    <<: *common
+    image: postgrest/postgrest:v14.5
+    container_name: score-postgrest
+    ports:
+      - "127.0.0.1:3000:3000"
+    environment:
+      PGRST_DB_URI: postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@pgbouncer:6432/${POSTGRES_DB:-postgres}
+      PGRST_DB_SCHEMAS: public,association,academy,platform,chat,billing,content,crm,tracking
+      PGRST_DB_ANON_ROLE: anon
+      PGRST_JWT_SECRET: ${JWT_SECRET:?error}
+      PGRST_DB_USE_LEGACY_GUCS: "false"
+      PGRST_APP_SETTINGS_JWT_SECRET: ${JWT_SECRET}
+      PGRST_APP_SETTINGS_JWT_EXP: 3600
+    depends_on:
+      pgbouncer:
+        condition: service_started
+    networks:
+      - score_net
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:3000/ || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  # =========================================================================
+  # 5. Supabase Realtime — WebSocket для подписок
+  # =========================================================================
+  realtime:
+    <<: *common
+    image: supabase/realtime:v2.76.5
+    container_name: score-realtime
+    ports:
+      - "127.0.0.1:4000:4000"
+    environment:
+      PORT: 4000
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: ${POSTGRES_USER:-postgres}
+      DB_PASSWORD: ${POSTGRES_PASSWORD}
+      DB_NAME: ${POSTGRES_DB:-postgres}
+      DB_AFTER_CONNECT_QUERY: "SET search_path TO _realtime"
+      DB_ENC_KEY: ${REALTIME_ENC_KEY:-supabaserealtimedev}
+      API_JWT_SECRET: ${JWT_SECRET}
+      FLY_ALLOC_ID: fly123
+      FLY_APP_NAME: realtime
+      SECRET_KEY_BASE: ${REALTIME_SECRET_KEY_BASE:?error}
+      ERL_AFLAGS: "-proto_dist inet_tcp"
+      ENABLE_TAILSCALE: "false"
+      DNS_NODES: "''"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - score_net
+
+  # =========================================================================
+  # 6. Supabase Storage — файловое хранилище (на MinIO)
+  # =========================================================================
+  storage:
+    <<: *common
+    image: supabase/storage-api:v1.37.8
+    container_name: score-storage
+    ports:
+      - "127.0.0.1:5000:5000"
+    environment:
+      ANON_KEY: ${ANON_KEY:?error}
+      SERVICE_KEY: ${SERVICE_ROLE_KEY:?error}
+      POSTGREST_URL: http://postgrest:3000
+      PGRST_JWT_SECRET: ${JWT_SECRET}
+      DATABASE_URL: postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-postgres}
+      FILE_SIZE_LIMIT: 524288000  # 500MB
+      STORAGE_BACKEND: s3
+      GLOBAL_S3_BUCKET: score-storage
+      GLOBAL_S3_ENDPOINT: http://minio:9000
+      GLOBAL_S3_FORCE_PATH_STYLE: "true"
+      AWS_ACCESS_KEY_ID: ${MINIO_ROOT_USER:?error}
+      AWS_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD:?error}
+      REGION: us-east-1
+      TENANT_ID: stub
+      IS_MULTITENANT: "false"
+      AUTH_JWT_SECRET: ${JWT_SECRET}
+      AUTH_JWT_ALGORITHM: HS256
+    depends_on:
+      postgrest:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    networks:
+      - score_net
+
+  # =========================================================================
+  # 7. Supabase Studio — GUI для БД (dev/admin)
+  # =========================================================================
+  studio:
+    <<: *common
+    image: supabase/studio:2026.02.16-sha-26c615c
+    container_name: score-studio
+    ports:
+      - "127.0.0.1:3001:3000"
+    environment:
+      STUDIO_PG_META_URL: http://pg-meta:8080
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+
+      DEFAULT_ORGANIZATION_NAME: "SCORE Coaching"
+      DEFAULT_PROJECT_NAME: "SCORE Platform"
+
+      SUPABASE_URL: http://postgrest:3000
+      SUPABASE_PUBLIC_URL: ${API_EXTERNAL_URL:-http://localhost:8000}
+      SUPABASE_ANON_KEY: ${ANON_KEY}
+      SUPABASE_SERVICE_KEY: ${SERVICE_ROLE_KEY}
+    depends_on:
+      - postgrest
+      - pg-meta
+    networks:
+      - score_net
+
+  # =========================================================================
+  # 8. Supabase pg-meta — метаданные PostgreSQL для Studio
+  # =========================================================================
+  pg-meta:
+    <<: *common
+    image: supabase/postgres-meta:v0.95.2
+    container_name: score-pg-meta
+    ports:
+      - "127.0.0.1:8080:8080"
+    environment:
+      PG_META_PORT: 8080
+      PG_META_DB_HOST: postgres
+      PG_META_DB_PORT: 5432
+      PG_META_DB_NAME: ${POSTGRES_DB:-postgres}
+      PG_META_DB_USER: ${POSTGRES_USER:-postgres}
+      PG_META_DB_PASSWORD: ${POSTGRES_PASSWORD}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - score_net
+
+  # =========================================================================
+  # 9. MinIO — S3-совместимое файловое хранилище
+  # =========================================================================
+  minio:
+    <<: *common
+    image: minio/minio:RELEASE.2024-01-18T22-51-28Z
+    container_name: score-minio
+    ports:
+      - "127.0.0.1:9000:9000"
+      - "127.0.0.1:9001:9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:?error}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?error}
+    volumes:
+      - minio_data:/data
+    command: server /data --console-address ":9001"
+    networks:
+      - score_net
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # =========================================================================
+  # 10. MinIO init — создание бакетов
+  # =========================================================================
+  minio-init:
+    image: minio/mc:RELEASE.2024-01-18T07-03-39Z
+    container_name: score-minio-init
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: >
+      /bin/sh -c "
+      mc alias set score http://minio:9000 $${MINIO_ROOT_USER} $${MINIO_ROOT_PASSWORD};
+      mc mb --ignore-existing score/score-storage;
+      mc mb --ignore-existing score/avatars;
+      mc mb --ignore-existing score/courses;
+      mc mb --ignore-existing score/materials;
+      mc mb --ignore-existing score/recordings;
+      mc mb --ignore-existing score/game-assets;
+      mc mb --ignore-existing score/backups;
+      mc anonymous set download score/avatars;
+      echo 'MinIO buckets created successfully';
+      "
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+    networks:
+      - score_net
+
+  # =========================================================================
+  # 11. Redis 7 — кэш и очереди BullMQ
+  # =========================================================================
+  redis:
+    <<: *common
+    image: redis:7-alpine
+    container_name: score-redis
+    ports:
+      - "127.0.0.1:6379:6379"
+    command: >
+      redis-server
+      --maxmemory 256mb
+      --maxmemory-policy allkeys-lru
+      --appendonly yes
+      --requirepass ${REDIS_PASSWORD:?error}
+    volumes:
+      - redis_data:/data
+    networks:
+      - score_net
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  # =========================================================================
+  # 12. Nginx — reverse proxy, TLS, static
+  # =========================================================================
+  nginx:
+    <<: *common
+    image: nginx:1.25-alpine
+    container_name: score-nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./infrastructure/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./infrastructure/nginx/conf.d:/etc/nginx/conf.d:ro
+      - ./infrastructure/nginx/snippets:/etc/nginx/snippets:ro
+      - certbot_www:/var/www/certbot:ro
+      - certbot_conf:/etc/letsencrypt:ro
+    depends_on:
+      - postgrest
+      - gotrue
+      - realtime
+      - storage
+      - minio
+    networks:
+      - score_net
+
+  # =========================================================================
+  # 13. Certbot — автоматическое получение TLS-сертификатов
+  # =========================================================================
+  certbot:
+    image: certbot/certbot:v2.7.4
+    container_name: score-certbot
+    volumes:
+      - certbot_www:/var/www/certbot
+      - certbot_conf:/etc/letsencrypt
+    entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew; sleep 12h & wait $${!}; done;'"
+    networks:
+      - score_net
+
+  # =========================================================================
+  # 14. Prometheus — мониторинг метрик
+  # =========================================================================
+  prometheus:
+    <<: *common
+    image: prom/prometheus:v2.48.1
+    container_name: score-prometheus
+    ports:
+      - "127.0.0.1:9090:9090"
+    volumes:
+      - ./infrastructure/monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.retention.time=30d"
+      - "--web.console.libraries=/etc/prometheus/console_libraries"
+      - "--web.console.templates=/etc/prometheus/consoles"
+    networks:
+      - score_net
+      - monitoring_net
+
+  # =========================================================================
+  # 15. Grafana — дашборды мониторинга
+  # =========================================================================
+  grafana:
+    <<: *common
+    image: grafana/grafana:10.2.3
+    container_name: score-grafana
+    ports:
+      - "127.0.0.1:3002:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:?error}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_SERVER_ROOT_URL: ${GRAFANA_ROOT_URL:-http://localhost:3002}
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./infrastructure/monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+    depends_on:
+      - prometheus
+    networks:
+      - score_net
+      - monitoring_net
+
+  # =========================================================================
+  # 16. Node Exporter — метрики хоста (CPU, RAM, диск)
+  # =========================================================================
+  node-exporter:
+    <<: *common
+    image: prom/node-exporter:v1.7.0
+    container_name: score-node-exporter
+    ports:
+      - "127.0.0.1:9100:9100"
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+    command:
+      - "--path.procfs=/host/proc"
+      - "--path.rootfs=/rootfs"
+      - "--path.sysfs=/host/sys"
+      - "--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)"
+    networks:
+      - monitoring_net
+
+  # =========================================================================
+  # 17. Postgres Exporter — метрики PostgreSQL
+  # =========================================================================
+  postgres-exporter:
+    <<: *common
+    image: prometheuscommunity/postgres-exporter:v0.15.0
+    container_name: score-postgres-exporter
+    ports:
+      - "127.0.0.1:9187:9187"
+    environment:
+      DATA_SOURCE_NAME: "postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-postgres}?sslmode=disable"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - score_net
+      - monitoring_net

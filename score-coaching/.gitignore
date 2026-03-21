@@ -1,0 +1,51 @@
+# =============================================================================
+# SCORE Coaching — .gitignore
+# =============================================================================
+
+# Environment
+.env
+.env.local
+.env.production
+.env.*.local
+
+# Node
+node_modules/
+dist/
+build/
+.turbo/
+.next/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Logs
+*.log
+logs/
+
+# Backups
+backups/
+
+# SSL certificates (managed by certbot)
+infrastructure/nginx/ssl/
+
+# Docker volumes data (don't commit)
+postgres_data/
+minio_data/
+redis_data/
+prometheus_data/
+grafana_data/
+
+# OS
+Thumbs.db
+.DS_Store

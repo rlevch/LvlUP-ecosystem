@@ -1,0 +1,81 @@
+# =============================================================================
+# SCORE Coaching — Docker Compose для VPS #2 (Медиасервер)
+# =============================================================================
+# Развёртывается ОТДЕЛЬНО на VPS #2 (8 vCPU / 16GB RAM)
+# Запуск: docker compose -f docker-compose.livekit.yml up -d
+# =============================================================================
+
+x-common: &common
+  restart: unless-stopped
+  logging:
+    driver: json-file
+    options:
+      max-size: "10m"
+      max-file: "3"
+
+services:
+
+  # =========================================================================
+  # LiveKit Server — WebRTC SFU
+  # =========================================================================
+  livekit:
+    <<: *common
+    image: livekit/livekit-server:v1.5
+    container_name: score-livekit
+    ports:
+      - "7880:7880"   # HTTP API
+      - "7881:7881"   # WebRTC (TCP)
+      - "7882:7882/udp" # WebRTC (UDP)
+      - "50000-50100:50000-50100/udp" # ICE UDP ports
+    volumes:
+      - ./livekit.yaml:/etc/livekit.yaml:ro
+    command: --config /etc/livekit.yaml --node-ip ${PUBLIC_IP:-0.0.0.0}
+    network_mode: host
+
+  # =========================================================================
+  # LiveKit Egress — запись сессий
+  # =========================================================================
+  livekit-egress:
+    <<: *common
+    image: livekit/egress:v1.8
+    container_name: score-livekit-egress
+    environment:
+      EGRESS_CONFIG_FILE: /etc/egress.yaml
+    volumes:
+      - ./egress.yaml:/etc/egress.yaml:ro
+    cap_add:
+      - SYS_ADMIN
+    network_mode: host
+
+  # =========================================================================
+  # coturn — TURN/STUN для WebRTC за NAT
+  # =========================================================================
+  coturn:
+    <<: *common
+    image: coturn/coturn:4.6.2
+    container_name: score-coturn
+    ports:
+      - "3478:3478"
+      - "3478:3478/udp"
+      - "5349:5349"
+      - "5349:5349/udp"
+      - "49152-49252:49152-49252/udp"
+    command: >
+      turnserver
+      --listening-port=3478
+      --tls-listening-port=5349
+      --external-ip=$${PUBLIC_IP}
+      --relay-ip=$${PUBLIC_IP}
+      --min-port=49152
+      --max-port=49252
+      --user=$${TURN_USER}:$${TURN_PASSWORD}
+      --realm=$${DOMAIN:-score-coaching.ru}
+      --cert=/etc/letsencrypt/live/$${DOMAIN}/fullchain.pem
+      --pkey=/etc/letsencrypt/live/$${DOMAIN}/privkey.pem
+      --no-cli
+      --fingerprint
+      --lt-cred-mech
+      --verbose
+    volumes:
+      - /etc/letsencrypt:/etc/letsencrypt:ro
+    network_mode: host
