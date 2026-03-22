@@ -1,4 +1,4 @@
-# SCORE Coaching — Детальный план реализации (Roadmap)
+# LevelUP — Детальный план реализации (Roadmap)
 
 **Формат:** пошаговый план для одного fullstack-разработчика + lovable.dev
 **Оценки:** в человеко-днях (1 день = 6–8 продуктивных часов)
@@ -12,10 +12,10 @@
 
 **Порядок:**
 1. **Фаза 0** — Фундамент (общая инфраструктура)
-2. **Фаза 1** — MVP Платформы (score-coaching.ru)
-3. **Фаза 2** — MVP Академии (academy-coaching.ru)
+2. **Фаза 1** — MVP Платформы (levelup-platform.ru)
+3. **Фаза 2** — MVP Академии (levelup-academy.ru)
 4. **Фаза 3** — Post-MVP: расширение Платформы и Академии
-5. **Фаза 4** — Ассоциация (association-coaching.ru)
+5. **Фаза 4** — Ассоциация (levelup-association.ru)
 6. **Фаза 5** — Расширенные функции (AI, E2E-шифрование, магазин)
 
 **Общий таймлайн до запуска MVP (Платформа + Академия):** ~6–7.5 месяцев
@@ -75,31 +75,31 @@
 
 ### АКАДЕМИЯ
 
-| MVP (полный функционал)                                                                | Post-MVP (Фаза 3)                                               |
-| -------------------------------------------------------------------------------------- | --------------------------------------------------------------- |
-| Мультитенантная инфраструктура (Tenant Router, JWT claims, RLS)                        | Кастомные домены (on-demand TLS)                                |
-| Поддомены (`*.academy-coaching.ru`) + wildcard TLS                                     | Полный Theme Engine (8–10 тем, кастомизация шрифта, скругления) |
-| Redis-кэш тенантов                                                                     | Кастомный CSS                                                   |
-| Изоляция файлового хранилища (per-tenant)                                              | Тесты/квизы (конструктор, автопроверка)                         |
-| Rate limiting per tenant                                                               | Рабочие листы (worksheets)                                      |
-| Academy SPA + каталог школ                                                             | Split Payments (ЮKassa субаккаунты)                             |
-| Wizard создания школы                                                                  | School-Admin: аналитика (графики, метрики)                      |
-| Базовый бренд школы (логотип, название, 1 основной цвет, 3 пресета тем)                | School-Admin: команда (инвайты, роли)                           |
-| School SPA (TenantProvider, ThemeProvider — базовый)                                   | CRM, воронки, лендинги                                          |
-| LMS: курсы, модули, уроки (текст + видео)                                              | Email-рассылки школы                                            |
-| LMS: домашние задания (загрузка + проверка + фидбек)                                   | Видеосессии школы (лекции, вебинары)                            |
-| LMS: сертификаты (конструктор шаблонов + генерация PDF)                                | Чат школы                                                       |
-| Оплата курса (ЮKassa — вся оплата на платформу, расчёт со школами вручную)             | Библиотека школы                                                |
-| **Календарь преподавателя** (расписание занятий, повторяющиеся, отмена/перенос)        | Тарифные планы (4 уровня с лимитами)                            |
-| **Календарь студента** (занятия + дедлайны ДЗ + тесты, iCal-экспорт, push-напоминания) |                                                                 |
-| School-Admin: дашборд (базовая статистика)                                             | Блог школы                                                      |
-| School-Admin: настройки (general, branding, domain)                                    | Подписки на курсы (рекуррентные)                                |
-| School-Admin: управление курсами (CRUD, drag-and-drop)                                 |                                                                 |
-| School-Admin: управление студентами (список, карточка, импорт CSV)                     |                                                                 |
-| School-Admin: контент — страницы школы (конструктор блоков)                            |                                                                 |
-| School-Admin: управление подпиской                                                     |                                                                 |
-| Кабинет студента школы                                                                 |                                                                 |
-| Лендинг Академии                                                                       |                                                                 |
+| MVP (полный функционал) | Post-MVP (Фаза 3) |
+|---|---|
+| Мультитенантная инфраструктура (Tenant Router, JWT claims, RLS) | Кастомные домены (on-demand TLS) |
+| Поддомены (`*.levelup-academy.ru`) + wildcard TLS | Полный Theme Engine (8–10 тем, кастомизация шрифта, скругления) |
+| Redis-кэш тенантов | Кастомный CSS |
+| Изоляция файлового хранилища (per-tenant) | Тесты/квизы (конструктор, автопроверка) |
+| Rate limiting per tenant | Рабочие листы (worksheets) |
+| Academy SPA + каталог школ | Split Payments (ЮKassa субаккаунты) |
+| Wizard создания школы | School-Admin: аналитика (графики, метрики) |
+| Базовый бренд школы (логотип, название, 1 основной цвет, 3 пресета тем) | School-Admin: команда (инвайты, роли) |
+| School SPA (TenantProvider, ThemeProvider — базовый) | CRM, воронки, лендинги |
+| LMS: курсы, модули, уроки (текст + видео) | Email-рассылки школы |
+| LMS: домашние задания (загрузка + проверка + фидбек) | Видеосессии школы (лекции, вебинары) |
+| LMS: сертификаты (конструктор шаблонов + генерация PDF) | Чат школы |
+| Оплата курса (ЮKassa — вся оплата на платформу, расчёт со школами вручную) | Библиотека школы |
+| **Календарь преподавателя** (расписание занятий, повторяющиеся, отмена/перенос) | Тарифные планы (4 уровня с лимитами) |
+| **Календарь студента** (занятия + дедлайны ДЗ + тесты, iCal-экспорт, push-напоминания) | |
+| School-Admin: дашборд (базовая статистика) | Блог школы |
+| School-Admin: настройки (general, branding, domain) | Подписки на курсы (рекуррентные) |
+| School-Admin: управление курсами (CRUD, drag-and-drop) | |
+| School-Admin: управление студентами (список, карточка, импорт CSV) | |
+| School-Admin: контент — страницы школы (конструктор блоков) | |
+| School-Admin: управление подпиской | |
+| Кабинет студента школы | |
+| Лендинг Академии | |
 
 ---
 
@@ -115,14 +115,14 @@
 | 0.1.2 | Заказ и настройка VPS #2 | Медиасервер, 8 vCPU/16GB RAM. Аналогичная настройка | 0.5 дня |
 | 0.1.3 | Docker + Docker Compose | Docker на обоих VPS. `docker-compose.yml` со всеми сервисами. Docker networks | 1 день |
 | 0.1.4 | Supabase self-hosted | Развёртывание Supabase через официальный `docker-compose.yml` (одна команда поднимает все компоненты: PostgreSQL 15, GoTrue, Realtime, Storage, PostgREST, Studio). Настройка `.env` (пароли, JWT secret, SMTP) | 2 дня |
-| 0.1.5 | PostgreSQL tuning | Конфигурация `postgresql.conf` (shared_buffers, work_mem, etc.). pgBouncer. Автоматические бэкапы (pg_dump → MinIO) | 1 день |
-| 0.1.6 | Traefik reverse proxy | TLS (Let's Encrypt), gzip/brotli, маршрутизация по доменам (score-coaching.ru, academy-coaching.ru, association-coaching.ru), WebSocket проксирование. Wildcard-сертификат для `*.academy-coaching.ru` (DNS-01 challenge через Selectel DNS API) | 1.5 дня |
+| 0.1.5 | PostgreSQL tuning | Конфигурация `postgresql.conf` (shared_buffers, work_mem, etc.). Supavisor (встроенный пул соединений, настройка не требуется). Автоматические бэкапы (pg_dump → MinIO) | 1 день |
+| 0.1.6 | Traefik reverse proxy | TLS (Let's Encrypt), gzip/brotli, маршрутизация по доменам (levelup-platform.ru, levelup-academy.ru, levelup-association.ru), WebSocket проксирование. Wildcard-сертификат для `*.levelup-academy.ru` (DNS-01 challenge через Selectel DNS API) | 1.5 дня |
 | 0.1.7 | MinIO | Развёртывание MinIO, бакеты (avatars, courses, materials, recordings, game-assets, tenants/). CORS-политики | 0.5 дня |
 | 0.1.8 | Redis + BullMQ | Redis 7, maxmemory. Базовый воркер BullMQ (email, нотификации) | 1 день |
 | 0.1.9 | LiveKit Server | LiveKit на VPS #2. TURN/STUN (coturn). Проверка WebRTC через тестовую комнату | 2 дня |
 | 0.1.10 | CI/CD pipeline | GitHub Actions: линтинг, тесты, билд → деплой по SSH. Поддержка монорепозитория (turbo/nx) | 2 дня |
 | 0.1.11 | Мониторинг | Grafana + Prometheus. Базовые дашборды: CPU, RAM, диск, PostgreSQL, LiveKit | 1 день |
-| 0.1.12 | Доменные имена + DNS | Регистрация доменов (.ru). Selectel DNS. A-записи + wildcard `*.academy-coaching.ru` | 1 день |
+| 0.1.12 | Доменные имена + DNS | Регистрация доменов (.ru). Selectel DNS. A-записи + wildcard `*.levelup-academy.ru` | 1 день |
 
 **Итого 0.1:** 14.5 дней
 
@@ -250,7 +250,7 @@
 
 **Результат:** полнофункциональный маркетплейс коучей. Каталог с поиском и matching. Бронирование + оплата (ЮKassa, абонементы). Видеосессии (LiveKit) с teleconsent, заметками (50+ шаблонов), таймером, демонстрацией экрана, чатом. **Полноценные календари коуча и клиента** (день/неделя/месяц + iCal-экспорт). Мессенджер (direct + группы + файлы + push). Документооборот (intake, согласия, контракты). Библиотека. Диагностические тесты. Полные кабинеты коуча и клиента.
 
-**🚀 Можно запускать score-coaching.ru и начинать монетизацию.**
+**🚀 Можно запускать levelup-platform.ru и начинать монетизацию.**
 
 ---
 
@@ -263,7 +263,7 @@
 | # | Задача | Описание | Оценка |
 |---|--------|----------|--------|
 | 2.1.1 | Схема БД — tenant | Миграции: tenant.schools, tenant.school_settings, tenant.school_domains, tenant.school_plans, tenant.school_subscriptions, tenant.school_team_members, tenant.school_pages, tenant.school_certificates_templates, tenant.school_analytics_daily. RLS-политики | 3 дня |
-| 2.1.2 | Tenant Router Middleware | Fastify-плагин: определение tenant по Host-заголовку (поддомен `*.academy-coaching.ru` → slug → school_id). Redis-кэш. X-Tenant-Id в контекст. Supabase SET LOCAL для RLS | 3 дня |
+| 2.1.2 | Tenant Router Middleware | Fastify-плагин: определение tenant по Host-заголовку (поддомен `*.levelup-academy.ru` → slug → school_id). Redis-кэш. X-Tenant-Id в контекст. Supabase SET LOCAL для RLS | 3 дня |
 | 2.1.3 | JWT с tenant claims | Расширение GoTrue: `tenant_id` + `school_role` в JWT claims. Функция `current_tenant_id()` для RLS | 2 дня |
 | 2.1.4 | Redis-кэш тенантов | Кэширование `tenant:slug:{slug}` с TTL 5 мин. Invalidation при изменении настроек | 1.5 дня |
 | 2.1.5 | Изоляция файлового хранилища | Bucket-политика: `tenants/{tenant_id}/*` — изолированные каталоги | 1 день |
@@ -276,7 +276,7 @@
 
 | # | Задача | Описание | Оценка |
 |---|--------|----------|--------|
-| 2.2.1 | Academy SPA каркас | React SPA для academy-coaching.ru. Лендинг, auth, навигация. Переиспользование packages/ui | 2 дня |
+| 2.2.1 | Academy SPA каркас | React SPA для levelup-academy.ru. Лендинг, auth, навигация. Переиспользование packages/ui | 2 дня |
 | 2.2.2 | Каталог школ | Список школ с фильтрами (категория, рейтинг). Карточка → redirect на поддомен школы | 2 дня |
 | 2.2.3 | Wizard создания школы | Пошаговый: название → slug (поддомен) → описание → выбор пресета темы (3 шт.) → создание → redirect на school-admin | 3 дня |
 | 2.2.4 | Личный кабинет (Academy) | Мои школы, быстрый переход в school-admin | 1.5 дня |
@@ -288,7 +288,7 @@
 | # | Задача | Описание | Оценка |
 |---|--------|----------|--------|
 | 2.3.1 | TenantProvider + ThemeProvider (базовый) | Определение tenant по hostname. GET /api/tenant/resolve. CSS-переменные: `--school-primary`, `--school-bg`, `--school-text`. Favicon и title | 2 дня |
-| 2.3.2 | School SPA каркас | React SPA для `*.academy-coaching.ru`. TenantProvider. Главная, каталог курсов, auth (в бренде школы), навигация | 3 дня |
+| 2.3.2 | School SPA каркас | React SPA для `*.levelup-academy.ru`. TenantProvider. Главная, каталог курсов, auth (в бренде школы), навигация | 3 дня |
 | 2.3.3 | 3 пресета тем | Минималист (белый/серый), Корпоративный (синий/серый), Тёплый (оранжевый/кремовый). Выбор в wizard. Только основной цвет, фон, текст | 1 день |
 | 2.3.4 | Загрузка логотипа и названия | Upload логотипа (SVG/PNG). Отображение в header, favicon. Сохранение в school_settings | 1 день |
 
@@ -349,7 +349,7 @@
 
 **Результат:** SaaS-платформа для онлайн-школ. Создание школы на поддомене с базовым брендом. Полнофункциональная LMS: курсы (текст + видео), уроки, ДЗ с проверкой, сертификаты. **Полноценные календари преподавателя и студента** (расписание занятий, дедлайны ДЗ, iCal-экспорт). Оплата курсов через ЮKassa. School-Admin: управление курсами, студентами, контентом, настройками. Каталог школ.
 
-**🚀 Можно запускать academy-coaching.ru и начинать монетизацию.**
+**🚀 Можно запускать levelup-academy.ru и начинать монетизацию.**
 
 ---
 
@@ -391,7 +391,7 @@
 
 | # | Задача | Описание | Оценка |
 |---|--------|----------|--------|
-| 3.2.1 | Кастомные домены | Traefik on-demand TLS (HTTP-01). DNS-верификация (CNAME → proxy.academy-coaching.ru). UI в school-admin. tenant.school_domains | 3 дня |
+| 3.2.1 | Кастомные домены | Traefik on-demand TLS (HTTP-01). DNS-верификация (CNAME → proxy.levelup-academy.ru). UI в school-admin. tenant.school_domains | 3 дня |
 | 3.2.2 | Полный Theme Engine | 8–10 пресетов тем. Кастомизация: 6 цветов, шрифт (15 Google Fonts), скругление (0–16px). Color picker. Live-превью | 3 дня |
 | 3.2.3 | Кастомный CSS | Поле для произвольного CSS (sandbox). Санитизация опасных свойств | 1 день |
 | 3.2.4 | Тесты/квизы | Конструктор: одиночный/множественный выбор, текстовый ответ, соответствие. Проходной балл, лимит попыток. Таймер. UI прохождения | 4 дня |
@@ -423,7 +423,7 @@
 | # | Задача | Описание | Оценка |
 |---|--------|----------|--------|
 | 4.1.1 | Схема БД — association | Миграции: association.memberships, membership_levels, membership_payments, member_directory, international_council, corporate_programs. RLS | 1.5 дня |
-| 4.1.2 | Association SPA каркас | React SPA для association-coaching.ru. Лендинг, auth, навигация. packages/ui | 2 дня |
+| 4.1.2 | Association SPA каркас | React SPA для levelup-association.ru. Лендинг, auth, навигация. packages/ui | 2 дня |
 | 4.1.3 | Уровни членства | Настройка (student, basic, professional, master). Привилегии, стоимость/год | 1 день |
 | 4.1.4 | Вступление | Анкета → модерация → оплата (ЮKassa) → активация. Email на каждом шаге | 2 дня |
 | 4.1.5 | Продление | Напоминания за 30/14/7 дней. Повторная оплата. Рекуррентные платежи | 1.5 дня |
@@ -608,4 +608,4 @@
 
 7. **Split Payments — не блокирует запуск Академии.** На старте вся оплата идёт на платформу, вы рассчитываетесь со школами вручную. Split подключите, когда будет 10+ активных школ.
 
-8. **Кастомные домены — не блокируют запуск.** Поддомены `*.academy-coaching.ru` дают каждой школе уникальный URL. Кастомные домены добавите в Post-MVP.
+8. **Кастомные домены — не блокируют запуск.** Поддомены `*.levelup-academy.ru` дают каждой школе уникальный URL. Кастомные домены добавите в Post-MVP.
