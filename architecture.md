@@ -148,7 +148,9 @@
 - Шифрование на уровне приложения через **libsignal-protocol-javascript** (Signal Protocol)
 
 **Файловое хранилище:**
-- **Supabase Storage** (S3-совместимый, поверх MinIO на VPS) — документы, книги, видеозаписи
+- **Supabase Storage** — основной API для работы с файлами (RLS-политики, SDK, трансформация изображений)
+- **MinIO** — S3-совместимый бэкенд для Supabase Storage (хранит файлы на диске VPS). Также используется напрямую LiveKit Egress (VPS #2) для записи видеосессий по S3 API через приватную сеть (10.0.0.240:9000)
+- **Важно:** MinIO — это НЕ отдельное хранилище. Фронтенд и API работают через Supabase Storage SDK, а MinIO обеспечивает физическое хранение. Прямой доступ к MinIO нужен только LiveKit Egress
 
 **AI-сервис:**
 - **Python (FastAPI)** — обёртка над LLM API (GigaChat / YandexGPT — только российские AI-провайдеры, без зарубежных fallback)
@@ -356,8 +358,9 @@ Tenant Router Middleware (Fastify plugin)
    - RLS-политика: WHERE tenant_id = current_setting('app.current_tenant_id')
    - Невозможно увидеть данные чужой школы даже при SQL-инъекции
 
-2. Файловое хранилище (MinIO/Supabase Storage):
-   - Bucket-политика: tenants/{tenant_id}/*
+2. Файловое хранилище (Supabase Storage → MinIO):
+   - Supabase Storage RLS-политики контролируют доступ к файлам
+   - MinIO хранит файлы физически, bucket-структура: tenants/{tenant_id}/*
    - Каждая школа имеет изолированный "каталог" в хранилище
 
 3. Redis-кэш:
