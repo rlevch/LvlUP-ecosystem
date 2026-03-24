@@ -78,7 +78,7 @@
 2. **Академия** (levelup-academy.ru) — SaaS-конструктор онлайн-школ (аналог GetCourse)
 3. **Ассоциация** (levelup-association.ru) — профессиональное сообщество
 
-MVP включает Фазу 0 (фундамент), Фазу 1 (Платформа) и Фазу 2 (Академия) с полным функционалом всех фич. Общий срок — 9–10.5 месяцев для одного разработчика.
+MVP включает Фазу 0 (фундамент), Фазу 1 (Платформа) и Фазу 2 (Академия) с полным функционалом всех фич. Общий срок — 9.5–10.5 месяцев для одного разработчика (с буфером 15% — 11–12 месяцев).
 
 ---
 
@@ -4731,7 +4731,7 @@ CREATE SCHEMA IF NOT EXISTS tracking;    -- учёт часов (для ассо
 ### Шаг 0.16 — Email-сервис (1 день)
 
 #### Что делать
-Настроить отправку email через Unisender + BullMQ.
+Настроить отправку email через Unisender + BullMQ. Включая per-tenant брендинг: школы должны отправлять письма от своего имени (например, «Школа Иванова <noreply@levelup-academy.ru>» вместо «LevelUP»).
 
 #### Конкретные действия
 
@@ -5025,6 +5025,72 @@ docker exec -i supabase-db psql -U postgres < db_20260321_030000.sql
 
 #### Зачем это нужно
 Потеря данных — самое страшное, что может случиться с продуктом. Бэкап — ваша страховка. При 300 пользователях дамп БД будет весить 50–200 МБ (в сжатом виде), резервное копирование займёт секунды.
+
+---
+
+### Шаг 0.19a — Бэкап MinIO → Selectel S3 (0.5 дня)
+
+#### Что делать
+Настроить ежедневное резервное копирование файлов MinIO (видеозаписи, библиотеки школ, аватары) во внешнее S3-хранилище Selectel. Без этого при отказе NVMe-диска на VPS #1 все медиафайлы будут потеряны.
+
+#### Почему это важно сейчас
+Раньше видеозаписи и библиотеки школ были Post-MVP. Теперь всё это в MVP: запись сессий (Egress), библиотека школ, файлы курсов. Объём данных будет расти на ~10–50 ГБ/месяц. Потеря медиаконтента школ = потеря клиентов.
+
+#### Конкретные действия
+
+1. **Создать S3-бакет на Selectel:**
+   - Панель Selectel → Object Storage → Create Container
+   - Имя: `levelup-backups-media`
+   - Регион: тот же, что VPS (ru-1 или ru-3)
+   - Получить Access Key + Secret Key
+
+2. **Настроить mc (MinIO Client) для синхронизации:**
+
+```bash
+# На VPS #1 (levelup-app-01):
+nano /home/deploy/scripts/backup-minio.sh
+```
+
+```bash
+#!/bin/bash
+# Бэкап MinIO → Selectel S3
+set -e
+
+# Настройка алиасов (один раз)
+docker run --rm --network levelup-net \
+  minio/mc:latest sh -c "
+  mc alias set local http://minio:9000 \${MINIO_ROOT_USER} \${MINIO_ROOT_PASSWORD}
+  mc alias set selectel https://s3.ru-1.storage.selcloud.ru \${S3_ACCESS_KEY} \${S3_SECRET_KEY}
+
+  # Синхронизация бакетов (только новые/изменённые файлы)
+  mc mirror --overwrite local/recordings selectel/levelup-backups-media/recordings/
+  mc mirror --overwrite local/tenants selectel/levelup-backups-media/tenants/
+  mc mirror --overwrite local/courses selectel/levelup-backups-media/courses/
+  mc mirror --overwrite local/avatars selectel/levelup-backups-media/avatars/
+
+  # Удалить файлы старше 90 дней на S3 (lifecycle)
+  echo 'Sync completed at $(date)'
+"
+```
+
+```bash
+chmod +x /home/deploy/scripts/backup-minio.sh
+```
+
+3. **Добавить в crontab (ежедневно в 4:00, после бэкапа PostgreSQL):**
+
+```bash
+crontab -e
+# Добавить строку:
+0 4 * * * /home/deploy/scripts/backup-minio.sh >> /home/deploy/logs/backup-minio.log 2>&1
+```
+
+4. **Настроить Lifecycle Policy в Selectel** (через S3 API или панель):
+   - Записи видео старше 90 дней → переместить в Cold Storage (дешевле)
+   - Файлы старше 365 дней → удалить (или archive)
+
+#### Стоимость
+Selectel S3: ~2–3 ₽/ГБ в месяц. При 100 ГБ данных: ~200–300 ₽/мес.
 
 ---
 
@@ -5462,10 +5528,42 @@ CREATE INDEX idx_services_coach ON platform.coach_services(coach_id);
 CREATE INDEX idx_reviews_coach ON platform.reviews(coach_id);
 ```
 
+**Также добавить таблицы для коучинговых программ (задача 1.9.8):**
+
+```sql
+-- Коучинговые программы
+CREATE TABLE platform.coaching_programs (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  coach_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
+  title TEXT NOT NULL,
+  description TEXT,
+  structure JSONB NOT NULL DEFAULT '[]',  -- [{week: 1, tasks: [...], worksheets: [...]}]
+  duration_weeks INT NOT NULL DEFAULT 8,
+  price NUMERIC(10,2),
+  status TEXT NOT NULL DEFAULT 'draft',   -- draft, published, archived
+  created_at TIMESTAMPTZ DEFAULT now(),
+  updated_at TIMESTAMPTZ DEFAULT now()
+);
+
+CREATE TABLE platform.program_enrollments (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  program_id UUID REFERENCES platform.coaching_programs(id) ON DELETE CASCADE,
+  client_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
+  current_week INT DEFAULT 1,
+  progress JSONB DEFAULT '{}',           -- {task_id: completed, worksheet_id: submitted}
+  status TEXT NOT NULL DEFAULT 'active', -- active, completed, paused, canceled
+  enrolled_at TIMESTAMPTZ DEFAULT now(),
+  completed_at TIMESTAMPTZ
+);
+
+ALTER TABLE platform.coaching_programs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE platform.program_enrollments ENABLE ROW LEVEL SECURITY;
+```
+
 #### На что обратить внимание
 - Каждая таблица должна иметь RLS — без этого Supabase не будет фильтровать данные.
 - Индексы на часто фильтруемые колонки (coach_id, client_id, scheduled_at) — без них запросы будут медленными.
-- JSONB для гибких структур (content заметок, fields шаблонов) — позволяет менять структуру без миграций.
+- JSONB для гибких структур (content заметок, fields шаблонов, structure программ) — позволяет менять структуру без миграций.
 
 ---
 
@@ -5999,10 +6097,28 @@ CREATE TABLE billing.invoices (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- Промокоды (для платформы и школ, задача 1.9.10)
+CREATE TABLE billing.promo_codes (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id UUID REFERENCES tenant.schools(id),  -- NULL = платформенный, иначе школьный
+  code TEXT NOT NULL,
+  discount_type TEXT NOT NULL CHECK (discount_type IN ('percentage', 'fixed_amount')),
+  discount_value NUMERIC(10,2) NOT NULL,
+  max_uses INT,
+  used_count INT DEFAULT 0,
+  valid_from TIMESTAMPTZ,
+  valid_until TIMESTAMPTZ,
+  applicable_to JSONB DEFAULT '{"all": true}',  -- {"all": true} или {"course_ids": [...]}
+  is_active BOOLEAN DEFAULT TRUE,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
 -- Индексы
 CREATE INDEX idx_payments_user ON billing.payments(user_id, created_at DESC);
 CREATE INDEX idx_payments_provider_tx ON billing.payments(provider_tx_id);
 CREATE INDEX idx_subscriptions_user ON billing.subscriptions(user_id);
+CREATE INDEX idx_promo_code ON billing.promo_codes(code);
+CREATE INDEX idx_promo_tenant ON billing.promo_codes(tenant_id);
 
 -- RLS: пользователь видит только свои платежи
 ALTER TABLE billing.payments ENABLE ROW LEVEL SECURITY;
@@ -6012,6 +6128,8 @@ CREATE POLICY "Users see own payments" ON billing.payments
 ALTER TABLE billing.subscriptions ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Users see own subscriptions" ON billing.subscriptions
   FOR SELECT USING (user_id = auth.uid());
+
+ALTER TABLE billing.promo_codes ENABLE ROW LEVEL SECURITY;
 ```
 
 #### Конкретные действия
@@ -6777,10 +6895,27 @@ CREATE TABLE tenant.school_analytics_daily (
   PRIMARY KEY (school_id, date)
 );
 
+-- Промокоды школы (для задач 2.8.x)
+CREATE TABLE tenant.school_promo_codes (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  school_id UUID NOT NULL REFERENCES tenant.schools(id),
+  code TEXT NOT NULL,
+  discount_type TEXT NOT NULL CHECK (discount_type IN ('percentage', 'fixed_amount')),
+  discount_value NUMERIC(10,2) NOT NULL,
+  max_uses INT,
+  used_count INT DEFAULT 0,
+  valid_from TIMESTAMPTZ,
+  valid_until TIMESTAMPTZ,
+  applicable_to JSONB DEFAULT '{"all_courses": true}',
+  is_active BOOLEAN DEFAULT TRUE,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
 -- Индексы
 CREATE INDEX idx_school_domains_domain ON tenant.school_domains(domain);
 CREATE INDEX idx_school_team_user ON tenant.school_team_members(user_id);
 CREATE INDEX idx_school_pages_school ON tenant.school_pages(school_id, is_published);
+CREATE INDEX idx_school_promo_code ON tenant.school_promo_codes(school_id, code);
 ```
 
 2. **Функция current_tenant_id()** (1 день):
@@ -7236,6 +7371,63 @@ CREATE TABLE academy.calendars (
   events JSONB DEFAULT '[]'               -- [{title, start, end, type, recurring}]
 );
 
+-- Рабочие листы (worksheets) — для задачи 2.8.5
+CREATE TABLE academy.worksheets (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id UUID NOT NULL REFERENCES tenant.schools(id),
+  title TEXT NOT NULL,
+  description TEXT,
+  course_id UUID REFERENCES academy.courses(id),
+  fields JSONB NOT NULL DEFAULT '[]',     -- [{id, type, label, required, options, ...}]
+  status TEXT DEFAULT 'draft' CHECK (status IN ('draft', 'published', 'archived')),
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE academy.worksheet_submissions (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id UUID NOT NULL REFERENCES tenant.schools(id),
+  worksheet_id UUID NOT NULL REFERENCES academy.worksheets(id),
+  student_id UUID NOT NULL REFERENCES auth.users(id),
+  answers JSONB NOT NULL DEFAULT '{}',
+  status TEXT DEFAULT 'submitted' CHECK (status IN ('submitted', 'reviewed', 'needs_revision')),
+  feedback TEXT,
+  submitted_at TIMESTAMPTZ DEFAULT NOW(),
+  reviewed_at TIMESTAMPTZ
+);
+
+-- Рекуррентные подписки на курсы — для задачи 2.8.14
+CREATE TABLE academy.subscriptions_academy (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id UUID NOT NULL REFERENCES tenant.schools(id),
+  student_id UUID NOT NULL REFERENCES auth.users(id),
+  plan_name TEXT NOT NULL,
+  billing_period TEXT NOT NULL CHECK (billing_period IN ('monthly', 'yearly')),
+  amount NUMERIC(10,2) NOT NULL,
+  included_courses JSONB DEFAULT '"all"',  -- "all" или ["course_id_1", ...]
+  status TEXT DEFAULT 'active' CHECK (status IN ('active', 'canceled', 'past_due', 'expired')),
+  started_at TIMESTAMPTZ DEFAULT NOW(),
+  next_billing_at TIMESTAMPTZ,
+  canceled_at TIMESTAMPTZ
+);
+
+-- Блог школы — для задачи 2.8.13
+CREATE TABLE academy.blog_posts (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id UUID NOT NULL REFERENCES tenant.schools(id),
+  title TEXT NOT NULL,
+  slug TEXT NOT NULL,
+  excerpt TEXT,
+  content_html TEXT NOT NULL,
+  cover_image_url TEXT,
+  author_id UUID REFERENCES auth.users(id),
+  tags TEXT[] DEFAULT '{}',
+  status TEXT DEFAULT 'draft' CHECK (status IN ('draft', 'published', 'archived')),
+  published_at TIMESTAMPTZ,
+  views_count INT DEFAULT 0,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
 -- Индексы
 CREATE INDEX idx_courses_tenant ON academy.courses(tenant_id, is_published);
 CREATE INDEX idx_enrollments_user ON academy.enrollments(user_id, tenant_id);
@@ -7243,6 +7435,10 @@ CREATE INDEX idx_enrollments_course ON academy.enrollments(course_id, tenant_id)
 CREATE INDEX idx_lessons_module ON academy.lessons(module_id, position);
 CREATE INDEX idx_assignments_student ON academy.assignments(student_id, tenant_id);
 CREATE INDEX idx_video_sessions_tenant ON academy.video_sessions(tenant_id, scheduled_at);
+CREATE INDEX idx_worksheets_tenant ON academy.worksheets(tenant_id);
+CREATE INDEX idx_worksheet_subs_student ON academy.worksheet_submissions(student_id, tenant_id);
+CREATE INDEX idx_subscriptions_student ON academy.subscriptions_academy(student_id, tenant_id);
+CREATE INDEX idx_blog_posts_tenant ON academy.blog_posts(tenant_id, status, published_at DESC);
 
 -- RLS: мультитенантная изоляция
 ALTER TABLE academy.courses ENABLE ROW LEVEL SECURITY;

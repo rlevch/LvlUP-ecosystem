@@ -131,6 +131,7 @@
 | 0.1.3 | Docker + Docker Compose | Docker на обоих VPS. `docker-compose.yml` со всеми сервисами. Docker networks | 1 день |
 | 0.1.4 | Supabase self-hosted | Развёртывание Supabase через официальный `docker-compose.yml` (одна команда поднимает все компоненты: PostgreSQL 15, GoTrue, Realtime, Storage, PostgREST, Studio). Настройка `.env` (пароли, JWT secret, SMTP) | 2 дня |
 | 0.1.5 | PostgreSQL tuning | Конфигурация `postgresql.conf` (shared_buffers, work_mem, etc.). Supavisor (встроенный пул соединений, настройка не требуется). Автоматические бэкапы (pg_dump → MinIO) | 1 день |
+| 0.1.5a | Бэкап MinIO → Selectel S3 | Ежедневные снимки всех бакетов MinIO (видеозаписи, файлы библиотек, аватары) → внешний Selectel S3 bucket. Lifecycle-политики: 30 дней хранения старых записей. Скрипт + cron | 0.5 дня |
 | 0.1.6 | Traefik reverse proxy | TLS (Let's Encrypt), gzip/brotli, маршрутизация по доменам (levelup-platform.ru, levelup-academy.ru, levelup-association.ru), WebSocket проксирование. Wildcard-сертификат для `*.levelup-academy.ru` (DNS-01 challenge через Selectel DNS API) | 1.5 дня |
 | 0.1.7 | MinIO | Развёртывание MinIO, бакеты (avatars, courses, materials, recordings, game-assets, tenants/). CORS-политики | 0.5 дня |
 | 0.1.8 | Redis + BullMQ | Redis 7, maxmemory. Базовый воркер BullMQ (email, нотификации) | 1 день |
@@ -139,7 +140,7 @@
 | 0.1.11 | Мониторинг | Grafana + Prometheus. Базовые дашборды: CPU, RAM, диск, PostgreSQL, LiveKit | 1 день |
 | 0.1.12 | Доменные имена + DNS | Регистрация доменов (.ru). Selectel DNS. A-записи + wildcard `*.levelup-academy.ru` | 1 день |
 
-**Итого 0.1:** 14.5 дней
+**Итого 0.1:** 15 дней
 
 ### 0.2 Базовый каркас приложения
 
@@ -154,11 +155,11 @@
 | 0.2.7 | RBAC (роли и доступы) | Таблица `user_roles`, миддлвар. Глобальные: platform_admin, coach, client, association_member, moderator. Школьные: school_owner, school_admin, instructor, curator, manager, student (в `tenant.school_team_members`) | 2.5 дня |
 | 0.2.8 | API Gateway (Fastify) | Node.js + Fastify. Маршруты: healthcheck, auth-прокси, file-upload. Cluster mode (4 workers). Swagger/OpenAPI. Подготовка Tenant Router Middleware | 2.5 дня |
 | 0.2.9 | Схема БД — общие таблицы | Миграции: public.users, public.profiles, public.notifications, public.files, public.intake_forms, public.form_templates. Индексы, RLS | 2 дня |
-| 0.2.10 | Email-сервис | Unisender. Шаблоны: регистрация, восстановление пароля, уведомления. BullMQ-воркер | 1 день |
+| 0.2.10 | Email-сервис | Unisender. Шаблоны: регистрация, восстановление пароля, уведомления. BullMQ-воркер. Per-tenant sender config (школа шлёт от имени `Школа <noreply@levelup-academy.ru>`) | 1 день |
 
 **Итого 0.2:** 19 дней
 
-### Итого Фаза 0: ~33.5 дней (~1.5 месяца)
+### Итого Фаза 0: ~34 дней (~1.5 месяца)
 
 **Результат:** работающий сервер с Supabase, LiveKit, Redis, MinIO. Монорепозиторий. Platform SPA с авторизацией (email + VK + MAX), RBAC, App Shell. Traefik маршрутизирует домены. CI/CD. Мониторинг.
 
@@ -172,7 +173,7 @@
 
 | # | Задача | Описание | Оценка |
 |---|--------|----------|--------|
-| 1.1.1 | Схема БД — platform | Миграции: platform.coach_services, platform.sessions, platform.session_notes, platform.session_note_templates, platform.reviews, platform.coach_ratings, platform.coach_availability, platform.verification_documents, platform.incidents, platform.session_packages, platform.teleconsent. RLS-политики | 3 дня |
+| 1.1.1 | Схема БД — platform | Миграции: platform.coach_services, platform.sessions, platform.session_notes, platform.session_note_templates, platform.reviews, platform.coach_ratings, platform.coach_availability, platform.verification_documents, platform.incidents, platform.session_packages, platform.teleconsent, **platform.coaching_programs, platform.program_enrollments** (для задачи 1.9.8). RLS-политики | 3 дня |
 | 1.1.2 | Профиль коуча (публичный) | Фото, специализация, сертификации, опыт, отзывы, рейтинг, стоимость, кнопка бронирования. SEO-friendly URL (/coach/ivan-petrov) | 3 дня |
 | 1.1.3 | Каталог коучей | Поиск (full-text PostgreSQL), фильтры (специализация, цена, рейтинг, язык, формат). Пагинация. Карточки коучей | 3 дня |
 | 1.1.4 | Верификация коучей | Загрузка документов (дипломы, сертификаты) → модерация администратором → верифицированный бейдж | 2 дня |
@@ -221,7 +222,7 @@
 | # | Задача | Описание | Оценка |
 |---|--------|----------|--------|
 | 1.5.1 | Интеграция ЮKassa | Регистрация, API-ключи. @yookassa/sdk. Платежи (bank card, YooMoney, SBP) | 3 дня |
-| 1.5.2 | Схема БД — billing | Миграции: billing.plans, billing.subscriptions, billing.payments, billing.invoices. RLS | 1.5 дня |
+| 1.5.2 | Схема БД — billing | Миграции: billing.plans, billing.subscriptions, billing.payments, billing.invoices, **billing.promo_codes** (скидка %, фиксированная, лимит, срок — для задачи 1.9.10). RLS | 1.5 дня |
 | 1.5.3 | Оплата сессий | Оплата при бронировании. Холдирование → подтверждение после сессии. Возврат при отмене | 2 дня |
 | 1.5.4 | 54-ФЗ: онлайн-касса | Фискализация ЮKassa. Receipt (наименование, цена, НДС, email) | 1 день |
 | 1.5.5 | Абонементы | Пакеты сессий (5, 10, 20 шт.) со скидкой. Списание с баланса. Таблица platform.session_packages | 2 дня |
@@ -267,7 +268,8 @@
 |---|--------|----------|--------|
 | 1.9.1 | Виртуальная приёмная | Зал ожидания: аватар коуча, таймер, проверка камеры/микрофона. Коуч «впускает» клиента | 3 дня |
 | 1.9.2 | Запись сессий (Egress) | LiveKit Egress → MinIO. Статус записи в БД. Доступ для участников. Интеграция с teleconsent (запись начинается только при согласии) | 2 дня |
-| 1.9.3 | Игровой движок — МАК-карты | Схема БД (gameboard.*). tldraw-холст. Custom-shape для карт. Библиотека колод (60+). Drag-and-drop. Анимация переворачивания. Раскладки. Серверный RNG | 11 дней |
+| 1.9.2a | Схема БД — gameboard | Миграции: gameboard.mac_decks, gameboard.mac_cards, gameboard.game_templates, gameboard.game_template_decks, gameboard.game_sessions, gameboard.game_participants, gameboard.game_action_log. RLS-политики | 1 день |
+| 1.9.3 | Игровой движок — МАК-карты | tldraw-холст. Custom-shape для карт. Библиотека колод (60+). Drag-and-drop. Анимация переворачивания. Раскладки. Серверный RNG | 11 дней |
 | 1.9.4 | Игровой движок — Кубики 3D | Three.js + cannon-es: D6, D3, D12, пользовательские. Анимация броска. Broadcast | 4 дня |
 | 1.9.5 | Игровой движок — Поля и фишки | Загрузка изображений-фонов. Сетки/зоны. Фишки (формы, цвета). Snap-to-grid. Библиотека полей | 5 дней |
 | 1.9.6 | Игровой движок — Realtime + видеоинтеграция | Supabase Realtime-синхронизация. Presence. Game-in-Video режим (Side-by-Side, PiP). Таймер. Журнал (экспорт PDF) | 7 дней |
@@ -276,9 +278,9 @@
 | 1.9.9 | Автоматические выплаты коучам | Расчёт (сумма − комиссия). Заявка → подтверждение → перевод. Отчёт для бухгалтерии | 2 дня |
 | 1.9.10 | Промокоды | billing.promo_codes (скидка %, фиксированная, лимит, срок). Применение при оплате | 1.5 дня |
 
-**Итого 1.9:** 40.5 дней
+**Итого 1.9:** 41.5 дней
 
-### Итого Фаза 1: ~125 дней (~4–4.5 месяца)
+### Итого Фаза 1: ~126 дней (~4–4.5 месяца)
 
 **Результат:** полнофункциональный маркетплейс коучей с расширенными функциями. Каталог с поиском и matching. Бронирование + оплата (ЮKassa, абонементы, промокоды). Видеосессии (LiveKit) с teleconsent, заметками (50+ шаблонов), таймером, демонстрацией экрана, чатом, записью. **Полноценные календари коуча и клиента** (день/неделя/месяц + iCal-экспорт). Виртуальная приёмная. Игровой движок (МАК, кубики, поля). Коучинговые программы. Автоматические выплаты. Мессенджер (direct + группы + файлы + push). Документооборот (intake, согласия, контракты). Библиотека. Диагностические тесты. Полные кабинеты коуча и клиента.
 
@@ -294,7 +296,7 @@
 
 | # | Задача | Описание | Оценка |
 |---|--------|----------|--------|
-| 2.1.1 | Схема БД — tenant | Миграции: tenant.schools, tenant.school_settings, tenant.school_domains, tenant.school_plans, tenant.school_subscriptions, tenant.school_team_members, tenant.school_pages, tenant.school_certificates_templates, tenant.school_analytics_daily. RLS-политики | 3 дня |
+| 2.1.1 | Схема БД — tenant | Миграции: tenant.schools, tenant.school_settings, tenant.school_domains, tenant.school_plans, tenant.school_subscriptions, tenant.school_team_members, tenant.school_pages, tenant.school_certificates_templates, tenant.school_analytics_daily, **tenant.school_promo_codes** (для промокодов школы). RLS-политики | 3 дня |
 | 2.1.2 | Tenant Router Middleware | Fastify-плагин: определение tenant по Host-заголовку (поддомен `*.levelup-academy.ru` → slug → school_id). Redis-кэш. X-Tenant-Id в контекст. Supabase SET LOCAL для RLS | 3 дня |
 | 2.1.3 | JWT с tenant claims | Расширение GoTrue: `tenant_id` + `school_role` в JWT claims. Функция `current_tenant_id()` для RLS | 2 дня |
 | 2.1.4 | Redis-кэш тенантов | Кэширование `tenant:slug:{slug}` с TTL 5 мин. Invalidation при изменении настроек | 1.5 дня |
@@ -330,7 +332,7 @@
 
 | # | Задача | Описание | Оценка |
 |---|--------|----------|--------|
-| 2.4.1 | Схема БД — academy | Миграции: academy.courses, academy.modules, academy.lessons, academy.enrollments, academy.assignments, academy.quizzes, academy.quiz_attempts, academy.attendance_journal, academy.calendars, academy.issued_certificates, academy.video_sessions, academy.video_session_participants. **ВСЕ с tenant_id FK.** RLS с current_tenant_id() | 3 дня |
+| 2.4.1 | Схема БД — academy | Миграции: academy.courses, academy.modules, academy.lessons, academy.enrollments, academy.assignments, academy.quizzes, academy.quiz_attempts, academy.attendance_journal, academy.calendars, academy.issued_certificates, academy.video_sessions, academy.video_session_participants, **academy.subscriptions_academy** (рекуррентные подписки, для задачи 2.8.14), **academy.worksheets, academy.worksheet_submissions** (рабочие листы, для задачи 2.8.5). **ВСЕ с tenant_id FK.** RLS с current_tenant_id() | 3.5 дня |
 | 2.4.2 | School-Admin: управление курсами | CRUD курсов и модулей. Drag-and-drop сортировка. Статусы: черновик/опубликован/архив | 3 дня |
 | 2.4.3 | School-Admin: редактор уроков | Rich-text (TipTap). Загрузка видео (MinIO, tenant-isolated). Прикрепление файлов (PDF, DOCX). Content types: video, text | 3 дня |
 | 2.4.4 | Студент: каталог курсов школы | Список курсов с фильтрами (категория, уровень, цена). Карточка: описание, программа, преподаватель, кнопка покупки | 2 дня |
@@ -381,6 +383,7 @@
 
 | # | Задача | Описание | Оценка |
 |---|--------|----------|--------|
+| 2.8.0 | Схема БД — content + blog + library (tenant) | Миграции: content.library_items (с tenant_id FK — для школьных библиотек), content.blog_posts (с tenant_id FK — для блога школы), content.library_categories. RLS с current_tenant_id(). Переиспользует таблицы из 1.6.1 но с добавлением tenant_id-фильтрации | 1 день |
 | 2.8.1 | Кастомные домены | Traefik on-demand TLS (HTTP-01). DNS-верификация (CNAME → proxy.levelup-academy.ru). UI в school-admin. tenant.school_domains | 3 дня |
 | 2.8.2 | Полный Theme Engine | 8–10 пресетов тем. Кастомизация: 6 цветов, шрифт (15 Google Fonts), скругление (0–16px). Color picker. Live-превью | 3 дня |
 | 2.8.3 | Кастомный CSS | Поле для произвольного CSS (sandbox). Санитизация опасных свойств | 1 день |
@@ -396,9 +399,9 @@
 | 2.8.13 | Блог школы | Создание и публикация постов. TipTap. Список для студентов | 1.5 дня |
 | 2.8.14 | Подписки на курсы | Рекуррентные платежи за подписку. academy.subscriptions_academy | 2 дня |
 
-**Итого 2.8:** 37 дней
+**Итого 2.8:** 38 дней
 
-### Итого Фаза 2: ~121.5 дней (~4–4.5 месяца)
+### Итого Фаза 2: ~123 дней (~4–4.5 месяца)
 
 **Результат:** SaaS-платформа для онлайн-школ с расширенными функциями. Создание школы на поддомене или кастомном домене с полной кастомизацией бренда. Полнофункциональная LMS: курсы (текст + видео), уроки, ДЗ с проверкой, квизы, рабочие листы, сертификаты. **Полноценные календари преподавателя и студента** (расписание занятий, дедлайны ДЗ, iCal-экспорт). Оплата курсов с автоматическим расщеплением (Split Payments). Видеосессии школы (лекции, вебинары). School-Admin: управление курсами, студентами, командой, контентом, аналитикой, настройками. Блог, библиотека, тарифные планы, рекуррентные подписки. Каталог школ.
 
@@ -410,12 +413,12 @@
 
 | Фаза | Дней | Месяцев | Накопл. |
 |-------|------|---------|---------|
-| **0** Фундамент | 33.5 | 1.5 | 1.5 |
-| **1** MVP Платформы (расширенный) | 125 | 4–4.5 | 5.5–6 |
-| **2** MVP Академии (расширенный) | 121.5 | 4–4.5 | 9.5–10.5 |
-| **ИТОГО до запуска** | **~280** | **~9–10.5** | |
+| **0** Фундамент | 34 | 1.5 | 1.5 |
+| **1** MVP Платформы (расширенный) | 126 | 4–4.5 | 5.5–6 |
+| **2** MVP Академии (расширенный) | 123 | 4–4.5 | 9.5–10.5 |
+| **ИТОГО до запуска** | **~283** | **~9.5–10.5** | |
 
-С буфером 15%: **10.5–12 месяцев** до полного запуска обоих продуктов со всеми функциями.
+С буфером 15%: **11–12 месяцев** до полного запуска обоих продуктов со всеми функциями.
 
 ---
 
@@ -542,13 +545,13 @@
 
 | Фаза | Описание | Дней | Месяцев | Накопл. |
 |-------|----------|------|---------|---------|
-| **0** | Фундамент | 33.5 | 1.5 | 1.5 |
-| **1** | MVP Платформы (расширенный) | 125 | 4–4.5 | 5.5–6 |
-| **2** | MVP Академии (расширенный) | 121.5 | 4–4.5 | 9.5–10.5 |
-| | **🚀 ЗАПУСК MVP** | **~280** | **~9–10.5** | |
-| **3** | Ассоциация | 50.5 | 2–2.5 | 11.5–13 |
-| **4** | Расширенные (AI, CRM, магазин) | 43 | 2–2.5 | 13.5–15 |
-| | **ИТОГО ВСЁ** | **~373.5** | **~13–15** | |
+| **0** | Фундамент | 34 | 1.5 | 1.5 |
+| **1** | MVP Платформы (расширенный) | 126 | 4–4.5 | 5.5–6 |
+| **2** | MVP Академии (расширенный) | 123 | 4–4.5 | 9.5–10.5 |
+| | **🚀 ЗАПУСК MVP** | **~283** | **~9.5–10.5** | |
+| **3** | Ассоциация | 50.5 | 2–2.5 | 12–13 |
+| **4** | Расширенные (AI, CRM, магазин) | 43 | 2–2.5 | 14–15.5 |
+| | **ИТОГО ВСЁ** | **~376.5** | **~14–15.5** | |
 
 ---
 
