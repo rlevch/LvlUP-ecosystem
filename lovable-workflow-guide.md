@@ -12,7 +12,7 @@
 │                                                                      │
 │  Проект 1          Проект 2        Проект 3       Проект 4     Проект 5     │
 │  Platform          Academy         School         School-Admin Association  │
-│  (10 промптов)     (2 промпта)     (3 промпта)   (5 промптов)  (1 промпт)  │
+│  (10 промптов)     (2 промпта)     (3 промпта)   (22 промпта)  (1 промпт)  │
 │      │                │                │              │             │       │
 │      ▼                ▼                ▼              ▼             ▼       │
 │  repo: levelup-   repo: levelup-  repo: levelup- repo: levelup- repo: levelup- │
@@ -50,12 +50,32 @@
 - Экосистема LevelUP — платформа для коучинга (РФ)
 - Стек: React 19, TypeScript, Tailwind CSS v4, shadcn/ui, React Router v7, TanStack Query (серверное состояние), Zustand (клиентское состояние)
 - БД: Supabase (PostgreSQL). Все данные приходят через Supabase JS SDK (supabase.from('table').select())
-- Дизайн: современный, минималистичный, профессиональный. Основные цвета: тёмно-синий (#1e3a5f), золотой акцент (#c9a84c), белый фон. Скругления: rounded-xl. Тени: мягкие (shadow-sm).
 - Язык интерфейса: русский
 - Все формы должны иметь валидацию (react-hook-form + zod)
-- Адаптивный дизайн: mobile-first (320px → 768px → 1024px → 1440px)
+- Адаптивный дизайн: mobile-first (320px → 768px → 1024px → 1440px → 1920px)
 - Иконки: lucide-react
-- Шрифт: Inter (основной), Playfair Display (заголовки)
+
+Дизайн-система «Premium»:
+- Стиль: премиальный, люксовый, доверительный — как финтех или частный банкинг
+- Шрифты: DM Serif Display (заголовки, цифры в карточках — serif, с типографской элегантностью), DM Sans (основной текст — чистый sans-serif)
+- Цветовая схема:
+  - Сайдбар: тёмно-синий (#0f1d2f), с box-shadow вправо (shadow-lg)
+  - Золотой акцент (#c9a84c) — CTA-кнопки, активные элементы, выделения
+  - Фон основной области: кремовый (#faf8f4), карточки: белый (#fff) с border 1px solid #eeede9
+  - Статус-цвета: зелёный (#2d9f6f) — подтверждено, оранжевый (#d48c2e) — ожидает, синий (#4a8cc9) — завершено, красный (#c9514c) — отменено
+- Скругления: rounded-xl (13px). Тени: мягкие (shadow-sm на карточках, shadow-lg на сайдбаре)
+- Сайдбар (260px):
+  - Логотип "LevelUP" — DM Serif Display, "UP" золотым
+  - Активный пункт: золотая вертикальная полоска слева (3px, ::before), фон rgba(gold, 0.12)
+  - Аватар внизу с зелёным пульсирующим индикатором «онлайн»
+- Карточки статистики: цветная полоска сверху (3px), анимация fade-up staggered, числа DM Serif Display крупным
+- Кнопки: primary (золотой фон, белый текст, shadow) и secondary (белый, серая рамка)
+- Таблицы: подсветка строки при hover (rgba gold 0.07)
+- Хлебные крошки под заголовком
+- Прогресс-бар дня: gradient золотой → зелёный
+- Empty state: иконка + заголовок + описание + CTA
+- Анимации: fade-up при появлении (staggered 70ms)
+- Мобильная версия (≤768px): сайдбар → sticky top-bar
 
 ВАЖНО:
 - Используй TypeScript-интерфейсы, которые я даю — они соответствуют реальной схеме БД
@@ -173,7 +193,7 @@ interface Review {
 
 Моковые данные: создай массив из 6 CoachCard и 4 Review с реалистичными русскими именами. Вынеси в src/mocks/data.ts.
 
-Стиль: премиальный, доверительный. Цвета: тёмно-синий (#1e3a5f) для хедера/футера, белый фон основных секций, золотой (#c9a84c) для CTA-кнопок.
+Стиль: премиальный, люксовый, как финтех. Шрифты: DM Serif Display для заголовков, DM Sans для текста. Цвета: тёмно-синий (#0f1d2f) для хедера/футера, кремовый (#faf8f4) фон секций, белые (#fff) карточки с тонкой рамкой, золотой (#c9a84c) для CTA-кнопок (с shadow). Скругления: rounded-xl. Анимации появления секций при скролле (fade-up).
 ```
 
 ### Промпт 2 — Авторизация
@@ -301,7 +321,7 @@ onSubmit: console.log(data) — реальный API подключим позж
 
 ## Фаза 4. Волна 2C — Админка школы
 
-**Время:** ~2 часа
+**Время:** ~7 часов
 **Lovable-проект:** создать НОВЫЙ проект `levelup-school-admin`
 **GitHub-репо:** `rlevch/levelup-lovable-school-admin`
 **Результат → `apps/school-admin/`**
@@ -311,11 +331,27 @@ onSubmit: console.log(data) — реальный API подключим позж
 | # | Экран | Что генерируем | Примерное время |
 |---|-------|----------------|-----------------|
 | 8 | Дашборд школы | KPI, графики, таблица записей | 20 мин |
+| 23 | Список курсов | DataTable курсов + фильтры + KPI | 20 мин |
 | 16 | Конструктор курса | Форма + drag-and-drop модулей/уроков | 25 мин |
 | 17 | Управление студентами | DataTable + сайдпанель профиля | 20 мин |
+| 24 | Финансы школы | Выручка, графики, транзакции | 20 мин |
+| 25 | Конструктор страниц | CRUD страниц школы + drag-and-drop блоков | 25 мин |
 | 18 | Настройки школы | 8 табов: бренд, домен, SEO, команда | 20 мин |
 | 21 | Промо-коды и продажи | CRUD промо-кодов + таблица заказов | 15 мин |
 | 22 | Шаблоны сертификатов | Редактор HTML-шаблона + превью | 15 мин |
+| 26 | Видеозанятия | Расписание, календарь, участники, записи | 25 мин |
+| 27 | Библиотека | Файлы, категории, управление доступом | 25 мин |
+| 28 | Конструктор темы | 10 пресетов, color picker, шрифты, live-превью | 25 мин |
+| 29 | Тесты / Квизы | Конструктор вопросов, результаты | 25 мин |
+| 30 | Рабочие листы | Конструктор полей, заполнения, фидбек | 20 мин |
+| 31 | Аналитика | Графики, когорты, метрики | 25 мин |
+| 32 | Команда | Участники, роли, права, приглашения | 20 мин |
+| 33 | Чат школы | Каналы, сообщения, участники | 25 мин |
+| 34 | Split Payments | Расщепление платежей, выплаты, настройки | 20 мин |
+| 35 | Блог | Редактор постов, TipTap, SEO | 20 мин |
+| 36 | Подписки на курсы | Планы подписок, подписчики, MRR | 20 мин |
+| 37 | Тарифные планы | 4 тарифа, лимиты, сравнение | 20 мин |
+| 38 | Кастомные домены | DNS-записи, верификация, SSL | 15 мин |
 
 ### Как создать проект
 
@@ -467,13 +503,29 @@ cp -r /tmp/levelup-lovable-school/src/mocks apps/school/src/mocks/
 ### 7.6. Перенести Админку школы
 
 ```bash
-mkdir -p apps/school-admin/src/modules/{dashboard,courses,students,settings,sales,certificates}
+mkdir -p apps/school-admin/src/modules/{dashboard,courses,students,finances,pages,settings,sales,certificates,video,library,theme,quizzes,worksheets,analytics,team,chat,subscriptions,plans,domains,blog}
 cp /tmp/levelup-lovable-school-admin/src/pages/Dashboard.tsx apps/school-admin/src/modules/dashboard/
+cp /tmp/levelup-lovable-school-admin/src/pages/CourseList.tsx apps/school-admin/src/modules/courses/
 cp /tmp/levelup-lovable-school-admin/src/pages/CourseEditor.tsx apps/school-admin/src/modules/courses/
 cp /tmp/levelup-lovable-school-admin/src/pages/Students.tsx apps/school-admin/src/modules/students/
+cp /tmp/levelup-lovable-school-admin/src/pages/Finances.tsx apps/school-admin/src/modules/finances/
+cp /tmp/levelup-lovable-school-admin/src/pages/PageBuilder.tsx apps/school-admin/src/modules/pages/
 cp /tmp/levelup-lovable-school-admin/src/pages/Settings.tsx apps/school-admin/src/modules/settings/
 cp /tmp/levelup-lovable-school-admin/src/pages/PromoCodes.tsx apps/school-admin/src/modules/sales/
 cp /tmp/levelup-lovable-school-admin/src/pages/Certificates.tsx apps/school-admin/src/modules/certificates/
+cp /tmp/levelup-lovable-school-admin/src/pages/VideoSessions.tsx apps/school-admin/src/modules/video/
+cp /tmp/levelup-lovable-school-admin/src/pages/Library.tsx apps/school-admin/src/modules/library/
+cp /tmp/levelup-lovable-school-admin/src/pages/ThemeEngine.tsx apps/school-admin/src/modules/theme/
+cp /tmp/levelup-lovable-school-admin/src/pages/Quizzes.tsx apps/school-admin/src/modules/quizzes/
+cp /tmp/levelup-lovable-school-admin/src/pages/Worksheets.tsx apps/school-admin/src/modules/worksheets/
+cp /tmp/levelup-lovable-school-admin/src/pages/Analytics.tsx apps/school-admin/src/modules/analytics/
+cp /tmp/levelup-lovable-school-admin/src/pages/Team.tsx apps/school-admin/src/modules/team/
+cp /tmp/levelup-lovable-school-admin/src/pages/Chat.tsx apps/school-admin/src/modules/chat/
+cp /tmp/levelup-lovable-school-admin/src/pages/SplitPayments.tsx apps/school-admin/src/modules/finances/
+cp /tmp/levelup-lovable-school-admin/src/pages/Blog.tsx apps/school-admin/src/modules/blog/
+cp /tmp/levelup-lovable-school-admin/src/pages/Subscriptions.tsx apps/school-admin/src/modules/subscriptions/
+cp /tmp/levelup-lovable-school-admin/src/pages/Plans.tsx apps/school-admin/src/modules/plans/
+cp /tmp/levelup-lovable-school-admin/src/pages/CustomDomains.tsx apps/school-admin/src/modules/domains/
 cp -r /tmp/levelup-lovable-school-admin/src/mocks apps/school-admin/src/mocks/
 ```
 
@@ -544,9 +596,9 @@ npx turbo dev --filter=school-admin # → http://localhost:5176
 | 1 | `levelup-platform` | 1, 2, 3, 4, 5, 11, 12, 13, 14, 15 | `apps/platform/` | 3-4 ч |
 | 2A | `levelup-academy` | 6, 7 | `apps/academy/` | 40 мин |
 | 2B | `levelup-school` | 19, 9, 20 | `apps/school/` | 1 ч |
-| 2C | `levelup-school-admin` | 8, 16, 17, 18, 21, 22 | `apps/school-admin/` | 2 ч |
+| 2C | `levelup-school-admin` | 8, 23, 16, 17, 24, 25, 18, 21, 22, 26-38 | `apps/school-admin/` | 7 ч |
 | 3 | `levelup-association` | 10 | `apps/association/` | 20 мин |
-| **Итого** | **5 проектов** | **22 промпта** | **5 apps** | **~8 ч** |
+| **Итого** | **5 проектов** | **38 промптов** | **5 apps** | **~13 ч** |
 
 ---
 

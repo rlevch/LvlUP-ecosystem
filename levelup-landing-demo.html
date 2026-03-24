@@ -1,0 +1,465 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LevelUP — Найдите своего коуча</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=DM+Serif+Display:ital@0;1&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'DM Sans',sans-serif;-webkit-font-smoothing:antialiased;color:#2d2b28;overflow-x:hidden}
+::-webkit-scrollbar{width:5px}::-webkit-scrollbar-thumb{background:#bbb;border-radius:3px}
+img{max-width:100%;display:block}
+a{text-decoration:none;color:inherit}
+
+:root{
+  --n:#0f1d2f;--nm:#172a42;--nl:#1e3a5f;
+  --g:#c9a84c;--g-hover:#b8993f;--gd:rgba(201,168,76,0.15);--g-soft:rgba(201,168,76,0.08);
+  --cr:#faf8f4;--w:#fff;
+  --g50:#f7f7f5;--g100:#eeede9;--g200:#dddbd5;--g300:#c5c3bd;--g400:#9b9790;--g500:#6e6b65;--g600:#4a4844;--g700:#2d2b28;
+  --grn:#2d9f6f;--blu:#4a8cc9;--org:#d48c2e;
+  --fd:'DM Serif Display',serif;--fb:'DM Sans',sans-serif;
+  --max:1200px;
+}
+
+/* ═══ ANIMATIONS ═══ */
+@keyframes fadeUp{from{opacity:0;transform:translateY(30px)}to{opacity:1;transform:translateY(0)}}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+@keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}
+@keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(201,168,76,0.3)}50%{box-shadow:0 0 0 12px rgba(201,168,76,0)}}
+.anim-up{animation:fadeUp .7s ease both}
+.d1{animation-delay:.1s}.d2{animation-delay:.2s}.d3{animation-delay:.3s}.d4{animation-delay:.4s}.d5{animation-delay:.5s}.d6{animation-delay:.6s}
+
+/* ═══ HEADER ═══ */
+.header{position:fixed;top:0;left:0;right:0;z-index:100;transition:all .3s}
+.header-inner{max-width:var(--max);margin:0 auto;padding:0 32px;height:72px;display:flex;align-items:center;justify-content:space-between}
+.header.scrolled{background:rgba(15,29,47,0.95);backdrop-filter:blur(20px);box-shadow:0 2px 20px rgba(0,0,0,0.15)}
+.logo{font-family:var(--fd);font-size:24px;color:#fff;letter-spacing:-.5px}.logo span{color:var(--g)}
+.nav{display:flex;align-items:center;gap:32px}
+.nav-link{color:rgba(255,255,255,0.6);font-size:13.5px;font-weight:500;transition:color .2s;letter-spacing:.2px}
+.nav-link:hover{color:#fff}
+.nav-btns{display:flex;gap:10px;align-items:center}
+.btn-ghost{padding:9px 20px;border-radius:10px;font-size:13px;font-weight:600;border:1.5px solid rgba(255,255,255,0.2);background:transparent;color:#fff;cursor:pointer;font-family:var(--fb);transition:all .2s}
+.btn-ghost:hover{border-color:rgba(255,255,255,0.5);background:rgba(255,255,255,0.05)}
+.btn-gold{padding:9px 22px;border-radius:10px;font-size:13px;font-weight:600;border:none;background:var(--g);color:#fff;cursor:pointer;font-family:var(--fb);transition:all .25s;box-shadow:0 3px 12px rgba(201,168,76,0.3)}
+.btn-gold:hover{box-shadow:0 5px 20px rgba(201,168,76,0.4);transform:translateY(-1px)}
+.mob-menu{display:none;background:none;border:none;color:#fff;font-size:24px;cursor:pointer}
+
+/* ═══ HERO ═══ */
+.hero{background:var(--n);padding:140px 32px 100px;position:relative;overflow:hidden}
+.hero::before{content:'';position:absolute;top:-200px;right:-200px;width:600px;height:600px;background:radial-gradient(circle,rgba(201,168,76,0.06) 0%,transparent 70%);border-radius:50%}
+.hero::after{content:'';position:absolute;bottom:-100px;left:-100px;width:400px;height:400px;background:radial-gradient(circle,rgba(74,140,201,0.04) 0%,transparent 70%);border-radius:50%}
+.hero-inner{max-width:var(--max);margin:0 auto;position:relative;z-index:1;display:grid;grid-template-columns:1fr 1fr;gap:60px;align-items:center}
+.hero-text h1{font-family:var(--fd);font-size:52px;color:#fff;line-height:1.15;letter-spacing:-1px;margin-bottom:20px}
+.hero-text h1 em{font-style:italic;color:var(--g)}
+.hero-text p{font-size:16px;color:rgba(255,255,255,0.5);line-height:1.7;max-width:480px;margin-bottom:36px}
+.hero-search{display:flex;gap:10px;flex-wrap:wrap}
+.hero-input{flex:1;min-width:200px;padding:14px 18px;border-radius:12px;border:1.5px solid rgba(255,255,255,0.1);background:rgba(255,255,255,0.05);color:#fff;font-size:14px;font-family:var(--fb);outline:none;transition:all .2s;backdrop-filter:blur(10px)}
+.hero-input::placeholder{color:rgba(255,255,255,0.3)}
+.hero-input:focus{border-color:var(--g);box-shadow:0 0 0 3px var(--gd)}
+.hero-select{padding:14px 18px;border-radius:12px;border:1.5px solid rgba(255,255,255,0.1);background:rgba(255,255,255,0.05);color:rgba(255,255,255,0.7);font-size:14px;font-family:var(--fb);outline:none;cursor:pointer;-webkit-appearance:none;min-width:180px}
+.hero-select option{background:var(--n);color:#fff}
+.hero-btn{padding:14px 28px;border-radius:12px;border:none;background:var(--g);color:#fff;font-size:14px;font-weight:600;cursor:pointer;font-family:var(--fb);box-shadow:0 4px 16px rgba(201,168,76,0.3);transition:all .25s;white-space:nowrap}
+.hero-btn:hover{box-shadow:0 6px 24px rgba(201,168,76,0.4);transform:translateY(-2px)}
+
+/* hero right — stats cards */
+.hero-cards{display:flex;flex-direction:column;gap:16px;position:relative}
+.hero-card{background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:16px;padding:24px;backdrop-filter:blur(12px);animation:float 4s ease-in-out infinite}
+.hero-card:nth-child(1){animation-delay:0s;margin-left:40px}.hero-card:nth-child(2){animation-delay:1.3s}.hero-card:nth-child(3){animation-delay:2.6s;margin-left:40px}
+.hc-top{display:flex;align-items:center;gap:12px;margin-bottom:12px}
+.hc-icon{width:40px;height:40px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:18px}
+.hc-label{font-size:12px;color:rgba(255,255,255,0.4);text-transform:uppercase;letter-spacing:.5px;font-weight:600}
+.hc-val{font-family:var(--fd);font-size:32px;color:#fff;letter-spacing:-1px}.hc-val span{font-size:16px;color:var(--g);margin-left:6px}
+
+/* ═══ ADVANTAGES ═══ */
+.advantages{background:var(--cr);padding:100px 32px}
+.advantages-inner{max-width:var(--max);margin:0 auto}
+.section-label{font-size:11px;font-weight:700;color:var(--g);text-transform:uppercase;letter-spacing:2px;margin-bottom:12px;text-align:center}
+.section-title{font-family:var(--fd);font-size:38px;color:var(--n);text-align:center;letter-spacing:-.5px;margin-bottom:56px;line-height:1.2}
+.section-title em{font-style:italic;color:var(--g)}
+.adv-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:20px}
+.adv-card{background:var(--w);border:1px solid var(--g100);border-radius:16px;padding:32px;position:relative;overflow:hidden;transition:all .35s}
+.adv-card::after{content:'';position:absolute;top:0;left:0;right:0;height:3px;background:var(--g);opacity:0;transition:opacity .3s}
+.adv-card:hover{transform:translateY(-4px);box-shadow:0 12px 40px rgba(15,29,47,0.06)}.adv-card:hover::after{opacity:1}
+.adv-icon{width:56px;height:56px;border-radius:14px;background:var(--g-soft);border:1px solid var(--gd);display:flex;align-items:center;justify-content:center;font-size:24px;margin-bottom:20px}
+.adv-card h3{font-family:var(--fd);font-size:19px;color:var(--n);margin-bottom:10px;letter-spacing:-.3px}
+.adv-card p{font-size:14px;color:var(--g500);line-height:1.65}
+
+/* ═══ COACHES ═══ */
+.coaches{background:var(--w);padding:100px 32px}
+.coaches-inner{max-width:var(--max);margin:0 auto}
+.coaches-header{display:flex;align-items:flex-end;justify-content:space-between;margin-bottom:40px}
+.coaches-header .section-title{text-align:left;margin-bottom:0}
+.coaches-scroll{display:flex;gap:20px;overflow-x:auto;padding-bottom:16px;scroll-snap-type:x mandatory;-webkit-overflow-scrolling:touch}
+.coaches-scroll::-webkit-scrollbar{height:4px}.coaches-scroll::-webkit-scrollbar-thumb{background:var(--g200);border-radius:4px}
+.coach-card{min-width:280px;max-width:280px;scroll-snap-align:start;background:var(--cr);border:1px solid var(--g100);border-radius:16px;overflow:hidden;transition:all .3s;flex-shrink:0}
+.coach-card:hover{transform:translateY(-4px);box-shadow:0 12px 36px rgba(15,29,47,0.07)}
+.coach-avatar{height:180px;background:var(--nl);display:flex;align-items:center;justify-content:center;position:relative}
+.coach-avatar .initials{font-family:var(--fd);font-size:48px;color:var(--g);opacity:.7}
+.coach-verified{position:absolute;top:12px;right:12px;background:var(--g);color:#fff;font-size:10px;font-weight:700;padding:4px 10px;border-radius:20px;letter-spacing:.3px}
+.coach-info{padding:20px}
+.coach-name{font-family:var(--fd);font-size:18px;color:var(--n);margin-bottom:6px}
+.coach-specs{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px}
+.coach-tag{font-size:10.5px;padding:4px 10px;border-radius:6px;background:var(--gd);color:var(--g-hover);font-weight:600}
+.coach-meta{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px}
+.coach-rating{display:flex;align-items:center;gap:4px;font-size:13px;font-weight:600;color:var(--g)}
+.coach-rating .stars{letter-spacing:1px}
+.coach-reviews{font-size:12px;color:var(--g400)}
+.coach-price{font-family:var(--fd);font-size:18px;color:var(--n)}
+.coach-price span{font-size:12px;color:var(--g400);font-family:var(--fb);font-weight:400}
+.coach-btn{width:100%;padding:10px;border-radius:10px;border:1.5px solid var(--g200);background:var(--w);color:var(--g600);font-size:13px;font-weight:600;cursor:pointer;font-family:var(--fb);transition:all .2s}
+.coach-btn:hover{border-color:var(--g);color:var(--g);background:var(--g-soft)}
+
+/* ═══ HOW IT WORKS ═══ */
+.how{background:var(--cr);padding:100px 32px}
+.how-inner{max-width:var(--max);margin:0 auto}
+.how-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:24px;counter-reset:step}
+.how-step{text-align:center;position:relative;counter-increment:step}
+.how-num{width:56px;height:56px;border-radius:50%;background:var(--n);color:var(--g);font-family:var(--fd);font-size:22px;display:flex;align-items:center;justify-content:center;margin:0 auto 20px;position:relative}
+.how-step:not(:last-child) .how-num::after{content:'';position:absolute;left:100%;top:50%;width:calc(100% + 24px);height:2px;background:linear-gradient(90deg,var(--g200),transparent);transform:translateY(-50%);pointer-events:none}
+.how-step h3{font-family:var(--fd);font-size:17px;color:var(--n);margin-bottom:8px}
+.how-step p{font-size:13px;color:var(--g400);line-height:1.6}
+
+/* ═══ REVIEWS ═══ */
+.reviews{background:var(--w);padding:100px 32px}
+.reviews-inner{max-width:var(--max);margin:0 auto}
+.reviews-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:20px}
+.review-card{background:var(--cr);border:1px solid var(--g100);border-radius:16px;padding:28px;transition:all .3s}
+.review-card:hover{box-shadow:0 8px 30px rgba(15,29,47,0.05)}
+.review-top{display:flex;align-items:center;gap:14px;margin-bottom:16px}
+.review-av{width:44px;height:44px;border-radius:50%;background:var(--nl);display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:700;color:var(--g);font-family:var(--fd)}
+.review-name{font-weight:600;font-size:14px;color:var(--n)}
+.review-date{font-size:11.5px;color:var(--g400)}
+.review-stars{color:var(--g);font-size:14px;letter-spacing:2px;margin-bottom:12px}
+.review-text{font-size:14px;color:var(--g500);line-height:1.7;font-style:italic}
+
+/* ═══ CTA ═══ */
+.cta{background:var(--n);padding:100px 32px;text-align:center;position:relative;overflow:hidden}
+.cta::before{content:'';position:absolute;top:50%;left:50%;width:600px;height:600px;background:radial-gradient(circle,rgba(201,168,76,0.06) 0%,transparent 70%);border-radius:50%;transform:translate(-50%,-50%)}
+.cta-inner{max-width:600px;margin:0 auto;position:relative;z-index:1}
+.cta h2{font-family:var(--fd);font-size:40px;color:#fff;margin-bottom:16px;letter-spacing:-.5px;line-height:1.2}
+.cta h2 em{font-style:italic;color:var(--g)}
+.cta p{font-size:15px;color:rgba(255,255,255,0.45);margin-bottom:36px;line-height:1.7}
+.cta-btn{padding:16px 40px;border-radius:13px;border:none;background:var(--g);color:#fff;font-size:16px;font-weight:600;cursor:pointer;font-family:var(--fb);box-shadow:0 4px 20px rgba(201,168,76,0.35);transition:all .25s;animation:pulse 3s infinite}
+.cta-btn:hover{box-shadow:0 8px 32px rgba(201,168,76,0.5);transform:translateY(-2px)}
+
+/* ═══ FOOTER ═══ */
+.footer{background:var(--n);border-top:1px solid rgba(255,255,255,0.06);padding:48px 32px 32px}
+.footer-inner{max-width:var(--max);margin:0 auto}
+.footer-top{display:grid;grid-template-columns:2fr 1fr 1fr 1fr;gap:40px;margin-bottom:40px}
+.footer .logo{margin-bottom:12px}
+.footer-desc{font-size:13px;color:rgba(255,255,255,0.35);line-height:1.65;max-width:280px}
+.footer-col h4{font-size:11px;font-weight:700;color:var(--g);text-transform:uppercase;letter-spacing:1.5px;margin-bottom:16px}
+.footer-col a{display:block;font-size:13px;color:rgba(255,255,255,0.45);margin-bottom:10px;transition:color .2s}
+.footer-col a:hover{color:#fff}
+.footer-bottom{border-top:1px solid rgba(255,255,255,0.06);padding-top:24px;display:flex;align-items:center;justify-content:space-between}
+.footer-copy{font-size:12px;color:rgba(255,255,255,0.2)}
+.footer-legal{display:flex;gap:20px}
+.footer-legal a{font-size:12px;color:rgba(255,255,255,0.25);transition:color .2s}
+.footer-legal a:hover{color:rgba(255,255,255,0.6)}
+
+/* ═══ RESPONSIVE ═══ */
+@media(max-width:1024px){
+  .hero-inner{grid-template-columns:1fr;text-align:center}
+  .hero-text p{margin:0 auto 36px}
+  .hero-search{justify-content:center}
+  .hero-cards{display:none}
+  .nav{display:none}.mob-menu{display:block}
+  .adv-grid{grid-template-columns:1fr 1fr}
+  .how-grid{grid-template-columns:1fr 1fr;gap:32px}
+  .how-step:not(:last-child) .how-num::after{display:none}
+  .footer-top{grid-template-columns:1fr 1fr}
+}
+@media(max-width:768px){
+  .hero{padding:120px 20px 70px}
+  .hero-text h1{font-size:36px}
+  .hero-search{flex-direction:column}.hero-input,.hero-select{min-width:100%}
+  .section-title{font-size:30px}
+  .adv-grid{grid-template-columns:1fr}
+  .reviews-grid{grid-template-columns:1fr}
+  .how-grid{grid-template-columns:1fr 1fr}
+  .coaches-header{flex-direction:column;align-items:flex-start;gap:16px}
+  .cta h2{font-size:30px}
+  .footer-top{grid-template-columns:1fr}
+}
+@media(max-width:480px){
+  .header-inner{padding:0 16px}
+  .hero{padding:100px 16px 60px}
+  .hero-text h1{font-size:28px}
+  .how-grid{grid-template-columns:1fr}
+  .footer-bottom{flex-direction:column;gap:12px;text-align:center}
+}
+@media(min-width:1440px){
+  .hero-text h1{font-size:58px}
+  .section-title{font-size:42px}
+}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script>
+var e=React.createElement;
+
+/* ═══ MOCK DATA ═══ */
+var COACHES=[
+  {id:'1',fn:'Ирина',ln:'Петрова',specs:['Карьерный коучинг','Лидерство'],rating:4.9,reviews:127,price:3500,bg:'#1e3a5f',v:true},
+  {id:'2',fn:'Алексей',ln:'Смирнов',specs:['Бизнес-коучинг','Стратегия'],rating:4.8,reviews:93,price:5000,bg:'#2d4a2d',v:true},
+  {id:'3',fn:'Мария',ln:'Козлова',specs:['Life-коучинг','Баланс'],rating:4.7,reviews:84,price:2800,bg:'#4a2d4a',v:false},
+  {id:'4',fn:'Дмитрий',ln:'Волков',specs:['Спорт','Мотивация'],rating:4.9,reviews:156,price:4200,bg:'#2d3a4a',v:true},
+  {id:'5',fn:'Елена',ln:'Морозова',specs:['Стресс-менеджмент','Осознанность'],rating:4.6,reviews:62,price:3000,bg:'#4a3a2d',v:false},
+  {id:'6',fn:'Сергей',ln:'Попов',specs:['Финансовый коучинг','Планирование'],rating:4.8,reviews:108,price:4500,bg:'#2d2d4a',v:true},
+];
+
+var REVIEWS=[
+  {id:'1',name:'Анна К.',rating:5,text:'Благодаря LevelUP я нашла потрясающего карьерного коуча. За 3 месяца полностью пересмотрела свой путь и получила повышение. Очень благодарна платформе!',date:'2 недели назад'},
+  {id:'2',name:'Михаил Д.',rating:5,text:'Удобная платформа для видеосессий с коучем. Особенно нравится возможность делать заметки прямо во время звонка и возвращаться к записям потом.',date:'1 месяц назад'},
+  {id:'3',name:'Ольга С.',rating:4,text:'Нашла здесь коуча по стресс-менеджменту. Игровые инструменты — МАК-карты и кубики — добавляют глубины в работу. Рекомендую всем!',date:'3 недели назад'},
+  {id:'4',name:'Павел В.',rating:5,text:'Как коуч, я ценю платформу за удобные инструменты: расписание, заметки GROW, видеозаписи сессий. Всё в одном месте — экономит массу времени.',date:'1 неделю назад'},
+];
+
+/* ═══ COMPONENTS ═══ */
+
+function Header(){
+  var ref=React.useRef(null);
+  React.useEffect(function(){
+    function onScroll(){if(ref.current){ref.current.classList.toggle('scrolled',window.scrollY>40)}}
+    window.addEventListener('scroll',onScroll);return function(){window.removeEventListener('scroll',onScroll)}
+  },[]);
+  return e('header',{className:'header',ref:ref},
+    e('div',{className:'header-inner'},
+      e('div',{className:'logo'},'Level',e('span',null,'UP')),
+      e('nav',{className:'nav'},
+        e('a',{href:'#coaches',className:'nav-link'},'Каталог коучей'),
+        e('a',{href:'#how',className:'nav-link'},'Как это работает'),
+        e('a',{href:'#reviews',className:'nav-link'},'Отзывы')
+      ),
+      e('div',{className:'nav-btns'},
+        e('button',{className:'btn-ghost'},'Войти'),
+        e('button',{className:'btn-gold'},'Начать бесплатно')
+      ),
+      e('button',{className:'mob-menu'},'☰')
+    )
+  );
+}
+
+function Hero(){
+  return e('section',{className:'hero'},
+    e('div',{className:'hero-inner'},
+      e('div',{className:'hero-text anim-up'},
+        e('h1',null,'Найдите своего ',e('em',null,'коуча')),
+        e('p',null,'Платформа для профессионального коучинга с видеосессиями, игровыми инструментами и безопасным хранением данных.'),
+        e('div',{className:'hero-search'},
+          e('input',{className:'hero-input',placeholder:'Имя коуча или специализация...'}),
+          e('select',{className:'hero-select'},
+            e('option',null,'Все специализации'),
+            e('option',null,'Карьерный коучинг'),
+            e('option',null,'Бизнес-коучинг'),
+            e('option',null,'Life-коучинг'),
+            e('option',null,'Спорт и мотивация')
+          ),
+          e('button',{className:'hero-btn'},'Найти коуча')
+        )
+      ),
+      e('div',{className:'hero-cards anim-up d2'},
+        e('div',{className:'hero-card'},
+          e('div',{className:'hc-top'},
+            e('div',{className:'hc-icon',style:{background:'rgba(45,159,111,0.15)'}},'👥'),
+            e('span',{className:'hc-label'},'Коучей на платформе')
+          ),
+          e('div',{className:'hc-val'},'340+')
+        ),
+        e('div',{className:'hero-card'},
+          e('div',{className:'hc-top'},
+            e('div',{className:'hc-icon',style:{background:'rgba(201,168,76,0.15)'}},'⭐'),
+            e('span',{className:'hc-label'},'Средний рейтинг')
+          ),
+          e('div',{className:'hc-val'},'4.8',e('span',null,'/ 5'))
+        ),
+        e('div',{className:'hero-card'},
+          e('div',{className:'hc-top'},
+            e('div',{className:'hc-icon',style:{background:'rgba(74,140,201,0.15)'}},'📹'),
+            e('span',{className:'hc-label'},'Проведено сессий')
+          ),
+          e('div',{className:'hc-val'},'12 400+')
+        )
+      )
+    )
+  );
+}
+
+function Advantages(){
+  var items=[
+    {icon:'📹',title:'Видеосессии с записью',desc:'HD-видеозвонки с возможностью записи, таймкодами и заметками. Возвращайтесь к ключевым моментам в любое время.'},
+    {icon:'🎲',title:'Игровые инструменты',desc:'МАК-карты, метафорические кубики и другие инструменты для глубокой работы с подсознанием прямо в видеосессии.'},
+    {icon:'🛡',title:'Безопасность данных',desc:'Все данные хранятся на серверах в РФ в соответствии с 152-ФЗ. Шифрование, резервные копии, полная конфиденциальность.'},
+  ];
+  return e('section',{className:'advantages'},
+    e('div',{className:'advantages-inner'},
+      e('div',{className:'section-label'},'Преимущества'),
+      e('h2',{className:'section-title'},'Почему ',e('em',null,'LevelUP'),'?'),
+      e('div',{className:'adv-grid'},
+        items.map(function(it,i){return e('div',{key:i,className:'adv-card anim-up d'+(i+1)},
+          e('div',{className:'adv-icon'},it.icon),
+          e('h3',null,it.title),
+          e('p',null,it.desc)
+        )})
+      )
+    )
+  );
+}
+
+function Coaches(){
+  return e('section',{className:'coaches',id:'coaches'},
+    e('div',{className:'coaches-inner'},
+      e('div',{className:'coaches-header'},
+        e('div',null,
+          e('div',{className:'section-label',style:{textAlign:'left'}},'Каталог'),
+          e('h2',{className:'section-title'},'Лучшие ',e('em',null,'коучи'))
+        ),
+        e('button',{className:'btn-gold'},'Все коучи →')
+      ),
+      e('div',{className:'coaches-scroll'},
+        COACHES.map(function(c){
+          return e('div',{key:c.id,className:'coach-card'},
+            e('div',{className:'coach-avatar',style:{background:c.bg}},
+              e('span',{className:'initials'},c.fn[0]+c.ln[0]),
+              c.v&&e('span',{className:'coach-verified'},'✓ Проверен')
+            ),
+            e('div',{className:'coach-info'},
+              e('div',{className:'coach-name'},c.fn+' '+c.ln),
+              e('div',{className:'coach-specs'},
+                c.specs.map(function(s){return e('span',{key:s,className:'coach-tag'},s)})
+              ),
+              e('div',{className:'coach-meta'},
+                e('div',null,
+                  e('div',{className:'coach-rating'},
+                    e('span',{className:'stars'},'★'),
+                    ' '+c.rating,
+                    e('span',{className:'coach-reviews',style:{marginLeft:6}},'('+c.reviews+')')
+                  )
+                ),
+                e('div',{className:'coach-price'},'от '+c.price.toLocaleString('ru-RU')+' ',e('span',null,'₽'))
+              ),
+              e('button',{className:'coach-btn'},'Записаться')
+            )
+          );
+        })
+      )
+    )
+  );
+}
+
+function HowItWorks(){
+  var steps=[
+    {num:'1',title:'Регистрация',desc:'Создайте аккаунт за 30 секунд — через email или VK ID'},
+    {num:'2',title:'Выбор коуча',desc:'Найдите подходящего специалиста по рейтингу и специализации'},
+    {num:'3',title:'Видеосессия',desc:'Проведите сессию онлайн с игровыми инструментами и заметками'},
+    {num:'4',title:'Результат',desc:'Отслеживайте прогресс и достигайте своих целей'},
+  ];
+  return e('section',{className:'how',id:'how'},
+    e('div',{className:'how-inner'},
+      e('div',{className:'section-label'},'Процесс'),
+      e('h2',{className:'section-title'},'Как это ',e('em',null,'работает'),'?'),
+      e('div',{className:'how-grid'},
+        steps.map(function(s,i){return e('div',{key:i,className:'how-step anim-up d'+(i+1)},
+          e('div',{className:'how-num'},s.num),
+          e('h3',null,s.title),
+          e('p',null,s.desc)
+        )})
+      )
+    )
+  );
+}
+
+function ReviewsSection(){
+  return e('section',{className:'reviews',id:'reviews'},
+    e('div',{className:'reviews-inner'},
+      e('div',{className:'section-label'},'Отзывы'),
+      e('h2',{className:'section-title'},'Что говорят наши ',e('em',null,'клиенты')),
+      e('div',{className:'reviews-grid'},
+        REVIEWS.map(function(r){
+          return e('div',{key:r.id,className:'review-card'},
+            e('div',{className:'review-top'},
+              e('div',{className:'review-av'},r.name[0]),
+              e('div',null,
+                e('div',{className:'review-name'},r.name),
+                e('div',{className:'review-date'},r.date)
+              )
+            ),
+            e('div',{className:'review-stars'},'★'.repeat(r.rating)+'☆'.repeat(5-r.rating)),
+            e('div',{className:'review-text'},'"'+r.text+'"')
+          );
+        })
+      )
+    )
+  );
+}
+
+function CTA(){
+  return e('section',{className:'cta'},
+    e('div',{className:'cta-inner'},
+      e('h2',null,'Начните свой путь',e('br'),e('em',null,'к изменениям')),
+      e('p',null,'Присоединяйтесь к тысячам людей, которые уже нашли своего коуча и достигают своих целей вместе с LevelUP.'),
+      e('button',{className:'cta-btn'},'Начать бесплатно')
+    )
+  );
+}
+
+function Footer(){
+  return e('footer',{className:'footer'},
+    e('div',{className:'footer-inner'},
+      e('div',{className:'footer-top'},
+        e('div',null,
+          e('div',{className:'logo'},'Level',e('span',null,'UP')),
+          e('p',{className:'footer-desc'},'Платформа для профессионального коучинга. Видеосессии, игровые инструменты, безопасность данных.')
+        ),
+        e('div',{className:'footer-col'},
+          e('h4',null,'Платформа'),
+          e('a',{href:'#'},'Каталог коучей'),
+          e('a',{href:'#'},'Стать коучем'),
+          e('a',{href:'#'},'Тарифы'),
+          e('a',{href:'#'},'О нас')
+        ),
+        e('div',{className:'footer-col'},
+          e('h4',null,'Поддержка'),
+          e('a',{href:'#'},'Центр помощи'),
+          e('a',{href:'#'},'Контакты'),
+          e('a',{href:'#'},'FAQ')
+        ),
+        e('div',{className:'footer-col'},
+          e('h4',null,'Контакты'),
+          e('a',{href:'#'},'info@levelup-platform.ru'),
+          e('a',{href:'#'},'Telegram'),
+          e('a',{href:'#'},'VK')
+        )
+      ),
+      e('div',{className:'footer-bottom'},
+        e('span',{className:'footer-copy'},'© 2026 LevelUP. Все права защищены.'),
+        e('div',{className:'footer-legal'},
+          e('a',{href:'#'},'Политика конфиденциальности'),
+          e('a',{href:'#'},'Условия использования')
+        )
+      )
+    )
+  );
+}
+
+function App(){
+  return e(React.Fragment,null,
+    e(Header),
+    e(Hero),
+    e(Advantages),
+    e(Coaches),
+    e(HowItWorks),
+    e(ReviewsSection),
+    e(CTA),
+    e(Footer)
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(e(App));
+</script>
+</body>
+</html>
