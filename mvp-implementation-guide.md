@@ -4418,10 +4418,59 @@ docker restart platform-spa
 ```
 
 Traefik dynamic config (`/home/deploy/levelup-platform/traefik/dynamic/routes.yml`):
-- `levelup-platform.ru` → `http://platform-spa:3000`
-- `api.levelup-platform.ru` → `http://supabase-kong:8000`
+- `levelup-platform.ru` → `http://platform-spa:3000` (SPA)
+- `api.levelup-platform.ru` + PathPrefix `/api`, `/health`, `/sitemap.xml`, `/robots.txt` → `http://172.20.0.1:3001` (Fastify API, priority 100)
+- `api.levelup-platform.ru` (всё остальное: `/auth/*`, `/rest/*`, `/storage/*`) → `http://supabase-kong:8000` (priority 50)
+
+**Важно:** Kong (supabase-kong) должен быть подключен к сети `supabase_levelup-net`:
+```bash
+docker network connect supabase_levelup-net supabase-kong
+```
+
+**iptables:** Для доступа Traefik-контейнера к Fastify API на хосте (port 3001) необходимо правило:
+```bash
+sudo iptables -I INPUT -p tcp --dport 3001 -s 172.16.0.0/12 -j ACCEPT
+sudo netfilter-persistent save
+```
 
 TLS-сертификаты Let's Encrypt выданы автоматически через HTTP challenge.
+
+##### Переменные окружения фронтенда
+
+Файл `apps/platform/.env.production` (создаётся на VPS, не в Git):
+```
+VITE_SUPABASE_URL=https://api.levelup-platform.ru
+VITE_SUPABASE_ANON_KEY=<anon key из Supabase>
+VITE_API_URL=https://api.levelup-platform.ru/api
+```
+
+**ВАЖНО:** Vite инлайнит `VITE_*` переменные при `build`. Без `.env.production` фронтенд будет обращаться к `localhost:8000` — auth не будет работать. После изменения `.env.production` необходима пересборка:
+```bash
+cd ~/levelup-monorepo && npm run build --workspace=apps/platform
+docker restart platform-spa
+```
+
+##### Запуск API Gateway через PM2
+
+Fastify API требует переменные окружения из `services/api/.env`. При `pm2 delete` + `pm2 start` env теряются. Правильный запуск:
+```bash
+cd ~/levelup-monorepo/services/api
+set -a && source .env && set +a
+pm2 start dist/server.js --name api-gateway --update-env
+```
+
+Файл `services/api/.env` (на VPS, не в Git):
+```
+SUPABASE_URL=http://localhost:8000
+SUPABASE_ANON_KEY=<anon key>
+SUPABASE_SERVICE_ROLE_KEY=<service role key>
+JWT_SECRET=<jwt secret>
+PORT=3001
+HOST=0.0.0.0
+NODE_ENV=production
+CORS_ORIGIN=https://levelup-platform.ru
+RATE_LIMIT_MAX=100
+```
 
 ##### Важные замечания при деплое
 
@@ -4434,6 +4483,49 @@ TLS-сертификаты Let's Encrypt выданы автоматически
 - Docker: Traefik в сети `supabase_levelup-net`, контейнеры запущенные вручную (`docker run`) нужно подключать через `docker network connect supabase_levelup-net <name>`
 - `serve` (ESM) не работает через PM2 напрямую (`ERR_REQUIRE_ESM`) — используем Docker-контейнер
 - DNS: A-записи `levelup-platform.ru`, `api.levelup-platform.ru`, `www.levelup-platform.ru` → `111.88.113.107` (VPS #1)
+- Фронтенд: `.env.production` обязателен для auth — без него Supabase SDK обращается к `localhost:8000`
+- PM2 + env: при `pm2 delete` переменные теряются — запускать через `source .env && pm2 start`
+
+##### Система обратной связи
+
+**Миграция:** `014_feedback_table.sql` — таблица `feedback` с RLS (публичная вставка, чтение только service_role).
+
+**API:**
+- `POST /api/feedback` — публичный (без авторизации), принимает: `name`, `email`, `role`, `rating_overall`, `rating_usability`, `rating_design`, `liked`, `improvements`, `recommend`, `comments`
+- `GET /api/feedback` — список всей обратной связи (через service_role)
+
+**Фронтенд:** Страница `/feedback` — встроенная форма с рейтингами (звёзды), валидацией, анимацией success-состояния. V4 дизайн.
+
+```bash
+# Применение миграции:
+docker exec -i supabase-db psql -U supabase_admin -d postgres < packages/supabase/migrations/014_feedback_table.sql
+```
+
+##### Тестовые сессии и сбор обратной связи
+
+**Три инструмента для пилотного тестирования:**
+
+| Инструмент | Файл | Назначение |
+|---|---|---|
+| Чеклист сценариев | `docs/test-scenarios-checklist.md` | 12 разделов, 50+ тестовых кейсов — ручной проход всех user flows |
+| Встроенная форма | `https://levelup-platform.ru/feedback` | Форма обратной связи с рейтингами, данные в таблицу `feedback` |
+| Google Form шаблон | `docs/pilot-feedback-google-form.md` | 21 вопрос + NPS + шаблон письма для коучей |
+
+**Порядок проведения тестовых сессий:**
+
+1. Самостоятельный проход чеклиста (`docs/test-scenarios-checklist.md`): регистрация → профиль → каталог → расписание → бронирование → мессенджер
+2. Создать Google Form по шаблону (`docs/pilot-feedback-google-form.md`)
+3. Пригласить 2-5 реальных коучей — отправить письмо (шаблон в документе) со ссылками:
+   - Регистрация: `https://levelup-platform.ru/auth?role=coach`
+   - Форма обратной связи: ссылка на Google Form
+   - Встроенная форма: `https://levelup-platform.ru/feedback`
+4. Дать коучам 3-5 дней на тестирование
+5. Собрать результаты из Google Таблицы + `GET /api/feedback`
+6. Зафиксировать найденные баги и приоритизировать
+
+**Тестовые аккаунты:**
+- Пилотные коучи: `coach1@levelup-test.ru` ... `coach10@levelup-test.ru` / `TestCoach2026!`
+- Новые аккаунты: регистрация через `/auth` (autoconfirm включен, SMTP не нужен)
 
 ---
 
@@ -4449,10 +4541,15 @@ TLS-сертификаты Let's Encrypt выданы автоматически
 - Библиотека и диагностические тесты
 - Полные кабинеты + админ-панель
 - E2E тесты: 37 passed (Playwright, chromium + mobile)
+- Нагрузочное тестирование: все пороги пройдены (k6, 50 VU, 37K запросов, p95 < 15ms)
 - 10 пилотных коучей с услугами и расписанием
+- Система обратной связи: встроенная форма `/feedback` + Google Form шаблон
+- Чеклист тестовых сценариев: 12 разделов, 50+ кейсов
+- Auth: email регистрация + autoconfirm работают через `api.levelup-platform.ru`
+- Маршрутизация: Traefik split routing (Fastify API + Supabase Kong) на одном домене
 - Сайт доступен: https://levelup-platform.ru (TLS, Traefik)
 
-**Фаза 1 завершена. Платформа развёрнута и работает на levelup-platform.ru.**
+**Фаза 1 завершена. Платформа развёрнута, протестирована и готова к пилотному тестированию с реальными коучами.**
 
 ---
 
