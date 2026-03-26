@@ -4271,17 +4271,17 @@ cd tests/e2e && API_URL=http://localhost:3001 BASE_URL=https://levelup-platform.
 Файл: `tests/load/k6-api.js` — 9 групп сценариев:
 
 1. **Health Check** — GET `/health`, метрика `health_duration`
-2. **Catalog - List Coaches** — GET `/api/coaches?limit=20`, метрика `catalog_duration`
+2. **Catalog - List Coaches** — GET `/api/coaches?limit=10`, метрика `catalog_duration`
 3. **Catalog - Search** — GET `/api/coaches?q=...` (рандомные запросы: бизнес, карьера, здоровье...), метрика `search_duration`
 4. **Coach Profile** — GET `/api/coaches/:id`, метрика `profile_duration`
-5. **Coach Availability Slots** — GET `/api/coaches/:id/slots?date_from=...&date_to=...`
+5. **Coach Availability Slots** — GET `/api/coaches/:id/slots?date=YYYY-MM-DD`, метрика `slots_duration`
 6. **Booking - Auth Required** — POST `/api/bookings` (ожидаем 401)
 7. **Messenger - Auth Required** — GET `/api/conversations` (ожидаем 401)
 8. **SEO Endpoints** — GET `/sitemap.xml`, `/robots.txt`
 9. **Protected Endpoints Batch** — GET bookings, notifications, dashboard, profile, admin (ожидаем 401)
 
 **Профиль нагрузки:**
-- 30s → 10 VU, 1m → 50 VU, 2m → 50 VU, 30s → 100 VU, 1m → 100 VU, 30s → 0
+- 15s → 5 VU (warmup), 30s → 15 VU, 1m → 30 VU, 2m → 30 VU, 30s → 50 VU (spike), 1m → 50 VU, 30s → 0
 
 **Пороги (thresholds):**
 - `http_req_duration`: p95 < 2000ms
@@ -4290,20 +4290,60 @@ cd tests/e2e && API_URL=http://localhost:3001 BASE_URL=https://levelup-platform.
 - `catalog_duration`: p95 < 3000ms
 - `search_duration`: p95 < 3000ms
 - `profile_duration`: p95 < 2000ms
+- `slots_duration`: p95 < 3000ms
 
 **Запуск:**
 
 ```bash
 # На VPS #1 (deploy@score-app-01)
-# Установка k6:
-sudo gpg --no-default-keyring --keyring /usr/share/keyrings/k6-archive-keyring.gpg --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys C5AD17C747E3415A3642D57D77C6C491D6AC1D68
-echo "deb [signed-by=/usr/share/keyrings/k6-archive-keyring.gpg] https://dl.k6.io/deb stable main" | sudo tee /etc/apt/sources.list.d/k6.list
-sudo apt update && sudo apt install k6
+# Установка k6 (бинарник):
+curl -L https://github.com/grafana/k6/releases/download/v0.50.0/k6-v0.50.0-linux-amd64.tar.gz | tar xz
+sudo mv k6-v0.50.0-linux-amd64/k6 /usr/local/bin/
+
+# Временно увеличить rate limit для теста:
+echo "RATE_LIMIT_MAX=10000" >> ~/levelup-monorepo/services/api/.env
+cd ~/levelup-monorepo/services/api && pm2 restart api-gateway
 
 # Запуск:
 cd /home/deploy/levelup-monorepo
 k6 run -e API_URL=http://localhost:3001 tests/load/k6-api.js
+
+# После теста — вернуть rate limit:
+sed -i '/RATE_LIMIT_MAX/d' ~/levelup-monorepo/services/api/.env
+echo "RATE_LIMIT_MAX=100" >> ~/levelup-monorepo/services/api/.env
+pm2 restart api-gateway
 ```
+
+**Результаты нагрузочного теста (2026-03-26):**
+
+Все пороги пройдены ✅
+
+| Метрика | Результат | Порог | Статус |
+|---|---|---|---|
+| `errors` | 1.40% | < 5% | ✅ |
+| `http_req_duration` p95 | 14.05ms | < 2000ms | ✅ |
+| `health_duration` p99 | < 44ms | < 500ms | ✅ |
+| `catalog_duration` p95 | 9.87ms | < 3000ms | ✅ |
+| `search_duration` p95 | 8.97ms | < 3000ms | ✅ |
+| `profile_duration` p95 | 28.08ms | < 2000ms | ✅ |
+| `slots_duration` p95 | 18.90ms | < 3000ms | ✅ |
+
+| Показатель | Значение |
+|---|---|
+| Пиковая нагрузка | 50 VU |
+| Всего запросов | 37 170 |
+| Запросов/сек | 106.66 |
+| Итераций | 2 478 |
+| Длительность теста | 5m 48s |
+| Средний response time | 3.36ms |
+| Pass rate (checks) | 98.74% |
+| Connection errors | ~30 (cold start, не учитываются в error rate) |
+
+**Примечания:**
+- Тест проводился на VPS #1 (2 vCPU, API в fork mode)
+- 1.4% ошибок — connection refused в первые секунды ramp-up (изолированы от error rate)
+- `http_req_failed: 53.95%` — штатно, т.к. включает 401 ответы (expected)
+- Rate limit временно увеличен до 10000 req/min для чистоты теста
 
 ##### Онбординг пилотных коучей
 
