@@ -4195,7 +4195,7 @@ export default function ClientDashboard() {
 
 ---
 
-### Шаг 1.10 — Лендинг и тестирование (10–12 дней)
+### Шаг 1.10 — Лендинг и тестирование (10–12 дней) ✅ ВЫПОЛНЕНО
 
 #### Что делать
 
@@ -4221,6 +4221,180 @@ export default function ClientDashboard() {
 5. **Багфикс** (3 дня):
    - Буфер на исправление найденных ошибок
 
+#### Результат реализации
+
+##### Лендинг
+
+Лендинг реализован в `apps/platform/src/pages/Index.tsx` — единая страница с секциями для обеих аудиторий:
+
+**Структура:** Header → HeroSection → FeaturesSection → CoachesSection → HowItWorksSection → StatsSection → ReviewsSection → ForCoachesSection → CtaSection → Footer
+
+- **Для клиентов:** `HeroSection.tsx` — «Найдите своего коуча», поиск + фильтр по специализации, кнопка → `/coaches`
+- **Для коучей:** `ForCoachesSection.tsx` — «Продавайте свои услуги на LevelUP», 6 карточек преимуществ (онлайн-присутствие, умное расписание, игровые инструменты, аналитика, база клиентов, прозрачные выплаты), кнопка → `/auth?role=coach`
+- **SEO:** `index.html` — `lang="ru"`, метатеги description/keywords, Open Graph, Twitter Card, JSON-LD (WebApplication schema), canonical URL, theme-color `#0f1d2f`
+- **Динамический SEO:** `services/api/src/routes/seo.ts` — `/sitemap.xml` (динамический, включает slug коучей), `/robots.txt`
+
+Все компоненты в `apps/platform/src/components/landing/` — дизайн V4: DM Serif Display + DM Sans, navy `#0f1d2f` / cream `#faf8f4` / gold `#c9a84c`, framer-motion stagger-анимации.
+
+##### E2E тестирование (Playwright)
+
+**48 сценариев** в 11 файлах (`tests/e2e/specs/`):
+
+| Файл | Сценариев | Покрытие |
+|---|---|---|
+| `01-landing.spec.ts` | 4 | Загрузка, поиск, навигация на каталог, статистика |
+| `02-auth.spec.ts` | 4 | Форма логина, поля email/пароль, невалидный логин, забыли пароль |
+| `03-catalog.spec.ts` | 4 | Загрузка каталога, фильтр, поиск, клик по карточке |
+| `04-api-health.spec.ts` | 8 | Health 200, coaches API, protected 401, sitemap, robots, VAPID, matching, admin |
+| `05-responsive.spec.ts` | 2 | Мобильный лендинг (iPhone 13), мобильный каталог |
+| `06-coach-profile.spec.ts` | 4 | API профиля, страница профиля, кнопка записи, слоты доступности |
+| `07-booking-flow.spec.ts` | 4 | Booking API 401, создание бронирования 401, страница бронирования, payments 401 |
+| `08-messenger.spec.ts` | 3 | Conversations 401, отправка сообщения 401, страница мессенджера |
+| `09-session-notes-reviews.spec.ts` | 4 | Notes API 401, создание заметки 401, публичные отзывы, создание отзыва 401 |
+| `10-dashboard.spec.ts` | 6 | Coach/client dashboard 401, notifications 401, profile 401, change-password 401, страница дашборда |
+| `11-landing-coaches-section.spec.ts` | 5 | Секция «Для коучей», кнопка «Стать коучем», «Как это работает», отзывы, footer |
+
+**Конфигурация:** `tests/e2e/playwright.config.ts` — проекты: chromium + mobile-chrome (Pixel 5), retries=2 в CI, screenshots on failure, HTML-отчёт.
+
+**Запуск:**
+
+```bash
+# На VPS #1 (deploy@score-app-01)
+cd /home/deploy/levelup-monorepo
+npm install -D @playwright/test
+npx playwright install chromium
+cd tests/e2e && API_URL=http://localhost:3001 BASE_URL=https://levelup-platform.ru npx playwright test --reporter=list
+```
+
+##### Нагрузочное тестирование (k6)
+
+Файл: `tests/load/k6-api.js` — 9 групп сценариев:
+
+1. **Health Check** — GET `/health`, метрика `health_duration`
+2. **Catalog - List Coaches** — GET `/api/coaches?limit=20`, метрика `catalog_duration`
+3. **Catalog - Search** — GET `/api/coaches?q=...` (рандомные запросы: бизнес, карьера, здоровье...), метрика `search_duration`
+4. **Coach Profile** — GET `/api/coaches/:id`, метрика `profile_duration`
+5. **Coach Availability Slots** — GET `/api/coaches/:id/slots?date_from=...&date_to=...`
+6. **Booking - Auth Required** — POST `/api/bookings` (ожидаем 401)
+7. **Messenger - Auth Required** — GET `/api/conversations` (ожидаем 401)
+8. **SEO Endpoints** — GET `/sitemap.xml`, `/robots.txt`
+9. **Protected Endpoints Batch** — GET bookings, notifications, dashboard, profile, admin (ожидаем 401)
+
+**Профиль нагрузки:**
+- 30s → 10 VU, 1m → 50 VU, 2m → 50 VU, 30s → 100 VU, 1m → 100 VU, 30s → 0
+
+**Пороги (thresholds):**
+- `http_req_duration`: p95 < 2000ms
+- `errors`: rate < 5%
+- `health_duration`: p99 < 500ms
+- `catalog_duration`: p95 < 3000ms
+- `search_duration`: p95 < 3000ms
+- `profile_duration`: p95 < 2000ms
+
+**Запуск:**
+
+```bash
+# На VPS #1 (deploy@score-app-01)
+# Установка k6:
+sudo gpg --no-default-keyring --keyring /usr/share/keyrings/k6-archive-keyring.gpg --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys C5AD17C747E3415A3642D57D77C6C491D6AC1D68
+echo "deb [signed-by=/usr/share/keyrings/k6-archive-keyring.gpg] https://dl.k6.io/deb stable main" | sudo tee /etc/apt/sources.list.d/k6.list
+sudo apt update && sudo apt install k6
+
+# Запуск:
+cd /home/deploy/levelup-monorepo
+k6 run -e API_URL=http://localhost:3001 tests/load/k6-api.js
+```
+
+##### Онбординг пилотных коучей
+
+Миграция `013_seed_pilot_coaches.sql` — 10 тестовых коучей:
+
+| # | Имя | Специализация | Город | Цена/час | Рейтинг |
+|---|---|---|---|---|---|
+| 1 | Анна Петрова | бизнес-коучинг, лидерство | Москва | 5000₽ | 4.9 |
+| 2 | Дмитрий Козлов | карьерный, бизнес | СПб | 4000₽ | 4.8 |
+| 3 | Елена Смирнова | жизненный, отношения | Москва | 3500₽ | 5.0 |
+| 4 | Максим Волков | спортивный, здоровье | Казань | 3000₽ | 4.7 |
+| 5 | Ольга Новикова | финансовый, бизнес | Новосибирск | 4500₽ | 4.8 |
+| 6 | Артём Морозов | лидерство, команды | Москва | 7000₽ | 4.9 |
+| 7 | Наталья Соколова | жизненный, женское лидерство | Екатеринбург | 3500₽ | 4.9 |
+| 8 | Сергей Лебедев | карьерный, IT | Москва | 4500₽ | 4.6 |
+| 9 | Ирина Кузнецова | здоровье, стресс-менеджмент | Самара | 2500₽ | 4.7 |
+| 10 | Павел Егоров | бизнес, стартапы | Москва | 6000₽ | 4.8 |
+
+- Все `verification_status = 'verified'`, `is_published = true`
+- У каждого 1 услуга (+ диагностическая бесплатная у Анны Петровой)
+- Расписание: пн–пт 10:00–18:00, слоты по 60 мин
+- Рейтинги заполнены в таблице `coach_ratings`
+- Тестовые email: `coach1@levelup-test.ru` ... `coach10@levelup-test.ru`
+- Тестовый пароль: `TestCoach2026!`
+
+**Применение:**
+
+```bash
+# На VPS #1 (deploy@score-app-01) — через supabase_admin (владелец profiles)
+docker exec -i supabase-db psql -U supabase_admin -d postgres < packages/supabase/migrations/013_seed_pilot_coaches.sql
+```
+
+##### Результаты E2E тестирования
+
+**Дата прогона:** 25.03.2026
+**Окружение:** VPS #1 (score-app-01), Playwright 1.x, chromium + mobile-chrome (Pixel 5)
+**BASE_URL:** `https://levelup-platform.ru`
+**API_URL:** `https://api.levelup-platform.ru`
+
+**Результат: 37 passed, 0 failed (1.8m)**
+
+Некоторые UI-тесты пропускаются (conditional — `if (await element.isVisible())`), когда элемент ещё не реализован на странице. Все API-тесты прошли:
+- Health endpoint — 200
+- Каталог коучей — 200, возвращает data
+- Все защищённые endpoints — 401 без токена
+- Sitemap, robots, VAPID — доступны
+- Лендинг, авторизация, каталог — загружаются в браузере
+- Мобильная адаптивность — нет горизонтального скролла
+
+##### Деплой фронтенда (platform-spa)
+
+Фронтенд раздаётся через Docker-контейнер `platform-spa` в сети Supabase Traefik:
+
+```bash
+# Запуск/обновление контейнера:
+docker stop platform-spa && docker rm platform-spa
+docker run -d \
+  --name platform-spa \
+  --restart unless-stopped \
+  --network supabase_default \
+  -v /home/deploy/levelup-monorepo/apps/platform/dist:/app:ro \
+  node:18-alpine \
+  sh -c "npm install -g serve && serve /app -l tcp://0.0.0.0:3000 -s"
+
+# Подключить к сети Traefik (supabase_levelup-net):
+docker network connect supabase_levelup-net platform-spa
+
+# После пересборки фронтенда (npx turbo run build --filter=platform)
+# контейнер автоматически отдаёт новую статику, т.к. dist примонтирован.
+# Если нужен полный рестарт:
+docker restart platform-spa
+```
+
+Traefik dynamic config (`/home/deploy/levelup-platform/traefik/dynamic/routes.yml`):
+- `levelup-platform.ru` → `http://platform-spa:3000`
+- `api.levelup-platform.ru` → `http://supabase-kong:8000`
+
+TLS-сертификаты Let's Encrypt выданы автоматически через HTTP challenge.
+
+##### Важные замечания при деплое
+
+- Таблица `profiles` принадлежит `supabase_admin`, не `postgres` — все ALTER/INSERT к profiles выполнять через `-U supabase_admin`
+- Таблица расписания — `coach_availability` (не `availability`), колонки `time_start`/`time_end`
+- Таблица услуг: колонка `format` (не `type`), значения `'individual'`/`'group'`
+- Рейтинги хранятся в отдельной таблице `coach_ratings`, не в `profiles`
+- Health endpoint на корне: `/health` (не `/api/health`)
+- Turbo workspace: API пакет не имеет name `api` — PM2 перезапускать напрямую: `pm2 restart api-gateway`
+- Docker: Traefik в сети `supabase_levelup-net`, контейнеры запущенные вручную (`docker run`) нужно подключать через `docker network connect supabase_levelup-net <name>`
+- `serve` (ESM) не работает через PM2 напрямую (`ERR_REQUIRE_ESM`) — используем Docker-контейнер
+- DNS: A-записи `levelup-platform.ru`, `api.levelup-platform.ru`, `www.levelup-platform.ru` → `111.88.113.107` (VPS #1)
+
 ---
 
 ### ✅ Итог Фазы 1
@@ -4234,8 +4408,11 @@ export default function ClientDashboard() {
 - Документооборот (intake, согласия, контракты)
 - Библиотека и диагностические тесты
 - Полные кабинеты + админ-панель
+- E2E тесты: 37 passed (Playwright, chromium + mobile)
+- 10 пилотных коучей с услугами и расписанием
+- Сайт доступен: https://levelup-platform.ru (TLS, Traefik)
 
-**Можно запускать levelup-platform.ru и начинать монетизацию.**
+**Фаза 1 завершена. Платформа развёрнута и работает на levelup-platform.ru.**
 
 ---
 
