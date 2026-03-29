@@ -1167,6 +1167,84 @@ levelup-association.ru/
 - Токены подписываются API-ключом LiveKit на сервере
 - Клиент подключается по WebSocket к LiveKit напрямую
 
+#### Запись видеосессий (LiveKit Egress) ✅ РЕАЛИЗОВАНО
+
+Запись сессий реализована через LiveKit Egress — компонент, который подключается к комнате как скрытый участник и записывает Room Composite в MP4.
+
+**Поток записи:**
+
+```
+Коуч нажимает «Запись» в VideoRoom
+  → POST /api/sessions/:id/recording/request
+  → Создаётся recording_consents (status=pending), коуч авто-принимает
+  → Клиенты видят RecordingConsentModal
+  → POST /api/sessions/:id/recording/respond (accept/decline)
+  → Если все приняли → status=approved → Egress авто-старт
+
+Egress (VPS #2, Docker) подключается к комнате
+  → Записывает Room Composite (speaker layout) в MP4
+  → Сохраняет в MinIO на VPS #2 (bucket: recordings)
+  → POST /api/livekit/webhook → egress_started / egress_ended
+  → Обновление session_recordings (status, file_size, duration_sec)
+
+Коуч на странице «Записи» (/dashboard/recordings)
+  → GET /api/recordings → список всех записей
+  → GET /api/recordings/:id/url → presigned URL (24ч) из MinIO
+  → Встроенный видеоплеер + скачивание
+```
+
+**Хранение записей:**
+
+| Параметр | Значение |
+|---|---|
+| Хранилище | MinIO на VPS #2 (111.88.113.71:8193) |
+| Bucket | `recordings` |
+| Формат файла | MP4 (Room Composite, speaker layout) |
+| Путь S3 | `recordings/{room_name}_{timestamp}.mp4` |
+| Presigned URL | 24 часа, генерируется API на VPS #1 через MinIO SDK |
+
+**Таблицы БД:**
+
+- `recording_consents` — запрос на согласие (session_id, status: pending/approved/declined)
+- `recording_consent_responses` — ответ каждого участника (consent_id, user_id, response: accepted/declined)
+- `session_recordings` — трекинг Egress (session_id, egress_id UNIQUE, s3_key, status: starting/active/complete/failed, file_size, duration_sec, started_at, ended_at, error_message)
+
+**API эндпоинты (recordings.ts):**
+
+| Метод | Путь | Описание |
+|---|---|---|
+| POST | `/sessions/:id/recording/start` | Ручной запуск Egress (обычно авто через consent) |
+| POST | `/sessions/:id/recording/stop` | Остановка Egress |
+| POST | `/livekit/webhook` | Вебхук от LiveKit (egress_started/egress_ended) |
+| GET | `/sessions/:id/recordings` | Записи конкретной сессии |
+| GET | `/recordings` | Все записи коуча (join sessions/client/service) |
+| GET | `/recordings/:id/url` | Presigned URL для просмотра/скачивания |
+
+**Docker (VPS #2):**
+
+Egress работает как Docker-контейнер рядом с LiveKit и coturn в `~/levelup-platform/`. Конфиг: `~/levelup-platform/egress/config.yaml`.
+
+Сетевая связность:
+- Egress → MinIO: через `host.docker.internal:8193` (MinIO и Egress на одном VPS #2)
+- Egress → LiveKit: через внутреннюю Docker-сеть `media-net` (`livekit:7880`)
+- Egress ↔ LiveKit (координация): через Redis в сети `compose_default`, подключённой как `redis-net` (`redis:6379`)
+- MinIO порт 8193: открыт на `0.0.0.0`, но ограничен UFW — доступ только с VPS #1 (`111.88.113.107`)
+- LiveKit → API (webhooks): `https://levelup-platform.ru/api/livekit/webhook` (egress_started/egress_ended)
+
+Файлы конфигов на VPS #2:
+- `~/levelup-platform/docker-compose.yml` — LiveKit + Egress + coturn
+- `~/levelup-platform/egress/config.yaml` — Egress (Redis, S3/MinIO, LiveKit keys)
+- `~/levelup-platform/livekit/config.yaml` — LiveKit Server (Redis, webhook URLs, keys)
+- `/opt/xtreme1/compose/docker-compose.yaml` — MinIO (порт 0.0.0.0:8193→9000)
+
+**Кнопка записи в VideoRoom (3 состояния):**
+
+| Состояние | Вид | Текст |
+|---|---|---|
+| Idle | Серая кнопка, hollow Circle | «Запись» |
+| Pending (ожидание согласия) | Янтарная кнопка, Loader2 spinner | «Ожидание» |
+| Active (идёт запись) | Красная пульсирующая, white square stop | «Стоп» + REC badge |
+
 #### 🆕 Видеосессии для школ (tenant-scoped)
 
 Преподаватели каждой школы в Академии могут проводить онлайн-занятия со студентами — **точно так же, как коучи проводят сессии на платформе**. Школьные видеосессии полностью изолированы по `tenant_id` и поддерживают все возможности платформенных сессий.

@@ -981,7 +981,7 @@ certificatesResolvers:
       email: rlevch@gmail.com
       storage: /letsencrypt/acme-dns.json
       dnsChallenge:
-        provider: selectel  # Selectel DNS API
+        provider: selectelv2  # Selectel DNS API v2
 ```
 
 2. **Добавить Traefik в `docker-compose.yml`:**
@@ -1001,7 +1001,10 @@ nano docker-compose.yml
     - "80:80"
     - "443:443"
   environment:
-    - SELECTEL_API_TOKEN=${SELECTEL_API_TOKEN}  # Для DNS-01 challenge (wildcard SSL)
+    - SELECTELV2_ACCOUNT_ID=${SELECTELV2_ACCOUNT_ID}
+      - SELECTELV2_PROJECT_ID=${SELECTELV2_PROJECT_ID}
+      - SELECTELV2_USERNAME=${SELECTELV2_USERNAME}
+      - SELECTELV2_PASSWORD=${SELECTELV2_PASSWORD}
   volumes:
     - /var/run/docker.sock:/var/run/docker.sock:ro
     - ./traefik/traefik.yml:/traefik.yml:ro
@@ -3270,6 +3273,23 @@ export function VideoRoom({ token, sessionId }: Props) {
 }
 ```
 
+#### Запись видеосессий (LiveKit Egress) ✅ РЕАЛИЗОВАНО
+
+**Архитектура**: LiveKit Egress (контейнер на VPS #2) записывает Room Composite в MP4 и складывает в MinIO (VPS #2, bucket `recordings`).
+
+**Flow**: Coach нажимает «Запись» → consent flow → все согласились → `session-notes.ts` автоматически стартует Egress → `session_recordings` row (status: starting) → webhook `egress_started` → status: active → Coach нажимает «Стоп» → `recordings.ts` вызывает `egressClient.stopEgress()` → webhook `egress_ended` → status: complete + file_size + duration_sec.
+
+**Файлы**:
+- `services/api/src/routes/recordings.ts` — Egress start/stop, webhook, получение записей, presigned URL
+- `services/api/src/routes/session-notes.ts` — auto-start Egress при consent approval
+- `apps/platform/src/modules/video/Recordings.tsx` — страница «Записи» в дашборде коуча
+- `apps/platform/src/hooks/useVideoSession.ts` — хуки `useCoachRecordings`, `useSessionRecordings`, `useRecordingUrl`, `useStopRecording`
+- `migrations/021_session_recordings.sql` — таблица `session_recordings`
+
+**Env vars (API .env)**: `RECORDING_MINIO_ENDPOINT`, `RECORDING_MINIO_PORT`, `RECORDING_MINIO_ACCESS_KEY`, `RECORDING_MINIO_SECRET_KEY`, `RECORDING_MINIO_BUCKET`
+
+**Docker (VPS #2)**: `egress` сервис + `~/levelup-platform/egress/config.yaml`
+
 ---
 
 ### Шаг 1.5 — Мессенджер (9 дней)
@@ -4559,9 +4579,11 @@ docker exec -i supabase-db psql -U supabase_admin -d postgres < packages/supabas
 
 ---
 
-### Шаг 2.1 — Мультитенантная инфраструктура (12.5 дней)
+### Шаг 2.1 — Мультитенантная инфраструктура (12.5 дней) ✅ ВЫПОЛНЕНО
 
 > Это самый технически сложный блок во всём проекте. Ошибка здесь = утечка данных школы. Будьте предельно внимательны.
+
+> **Деплой:** Traefik routes для `academy-spa:3001` и `school-spa:3002` уже настроены, но Docker-контейнеры ещё не созданы. Нужно добавить Dockerfile и docker-compose сервисы или PM2 + static serve.
 
 #### Что делать
 Реализовать изоляцию данных между школами: каждая школа видит только свои данные.
@@ -4572,6 +4594,10 @@ docker exec -i supabase-db psql -U supabase_admin -d postgres < packages/supabas
 
 ```sql
 -- Миграция: 003_tenant_schema.sql
+
+-- Схемы уже созданы (шаг 0.15), но на случай если нет:
+CREATE SCHEMA IF NOT EXISTS tenant;
+CREATE SCHEMA IF NOT EXISTS academy;
 
 CREATE TABLE tenant.schools (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -4697,21 +4723,7 @@ CREATE TABLE tenant.school_analytics_daily (
   PRIMARY KEY (school_id, date)
 );
 
--- Промокоды школы (для задач 2.8.x)
-CREATE TABLE tenant.school_promo_codes (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  school_id UUID NOT NULL REFERENCES tenant.schools(id),
-  code TEXT NOT NULL,
-  discount_type TEXT NOT NULL CHECK (discount_type IN ('percentage', 'fixed_amount')),
-  discount_value NUMERIC(10,2) NOT NULL,
-  max_uses INT,
-  used_count INT DEFAULT 0,
-  valid_from TIMESTAMPTZ,
-  valid_until TIMESTAMPTZ,
-  applicable_to JSONB DEFAULT '{"all_courses": true}',
-  is_active BOOLEAN DEFAULT TRUE,
-  created_at TIMESTAMPTZ DEFAULT NOW()
-);
+-- (дубликат school_promo_codes удалён — таблица уже определена выше)
 
 -- Индексы
 CREATE INDEX idx_school_domains_domain ON tenant.school_domains(domain);
@@ -4746,7 +4758,7 @@ CREATE POLICY "Tenant isolation" ON academy.enrollments
 4. **Tenant Router Middleware** (Fastify) (3 дня):
 
 ```ts
-// services/api-gateway/src/plugins/tenantRouter.ts
+// services/api/src/plugins/tenantRouter.ts
 import { FastifyRequest } from 'fastify';
 import IORedis from 'ioredis';
 
@@ -4770,7 +4782,7 @@ export async function tenantRouter(req: FastifyRequest) {
 
   // Запросить из БД
   const { data: school } = await supabase
-    .from('schools')
+    .from('tenant.schools')
     .select('id, name, status')
     .eq('slug', slug)
     .eq('status', 'active')
@@ -4805,7 +4817,9 @@ export async function tenantRouter(req: FastifyRequest) {
 
 ---
 
-### Шаг 2.2 — Academy SPA + Wizard создания школы (8.5 дней)
+### Шаг 2.2 — Academy SPA + Wizard создания школы (8.5 дней) ✅ ВЫПОЛНЕНО
+
+> **⚠️ ВАЖНО: UI-заготовки уже существуют!** На шаге 0.10 (lovable.dev) были сгенерированы UI-каркасы для `apps/academy`, `apps/school` и `apps/school-admin` с полным набором компонентов и mock-данных. При реализации шагов 2.2–2.7 **НЕ нужно** писать UI с нуля — нужно подключать реальные API и Supabase к существующим компонентам.
 
 #### Что делать
 
@@ -4825,7 +4839,11 @@ export async function tenantRouter(req: FastifyRequest) {
 
 ---
 
-### Шаг 2.3 — School SPA + Базовый бренд (7 дней)
+### Шаг 2.3 — School SPA + Базовый бренд (7 дней) ✅ ВЫПОЛНЕНО
+
+> **Wildcard SSL** настроен: `*.levelup-academy.ru` → Let's Encrypt через Selectel DNS v2 API (`selectelv2` provider в Traefik).
+> Сервисный пользователь: `LevelUp` (env vars: `SELECTELV2_ACCOUNT_ID`, `SELECTELV2_PROJECT_ID`, `SELECTELV2_USERNAME`, `SELECTELV2_PASSWORD`).
+> Traefik v3 HostRegexp: `HostRegexp(\`[a-z0-9-]+\\.levelup-academy\\.ru\`)`
 
 #### Что делать
 
@@ -4988,7 +5006,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
 
 ---
 
-### Шаг 2.4 — LMS: система обучения (28.5 дней)
+### Шаг 2.4 — LMS: система обучения (28.5 дней) ✅ ВЫПОЛНЕНО
 
 > Самый объёмный блок Фазы 2. Полноценная LMS с курсами, уроками, ДЗ, сертификатами, календарями.
 
@@ -5924,7 +5942,7 @@ export default function PageBuilder() {
 
 ---
 
-### Шаг 2.7 — Тестирование и запуск Академии (13.5 дней)
+### Шаг 2.7 — Тестирование и запуск Академии (13.5 дней) 🔄 В ПРОЦЕССЕ
 
 #### Что делать
 
@@ -5934,6 +5952,34 @@ export default function PageBuilder() {
 4. **Лендинг Академии** (2 дня)
 5. **Пилотные школы** (2 дня): 2–3 тестовые школы с курсами
 6. **Багфикс** (3 дня)
+
+#### ✅ Выполнено
+
+**Критические баги найдены и исправлены:**
+- PostgREST permissions: service_role/authenticated/anon не имели GRANT на tenant/academy схемы (authenticator.rolinherit=false → SET ROLE service_role теряет права). Migration 008 создана.
+- resolveSchoolRole использовал supabaseAdmin (public schema) вместо tenantDb для запросов к tenant.schools и tenant.school_team_members
+- resolveTenant использовал supabaseAdmin вместо tenantDb для schools query
+- school-admin adminGuard не включал resolveSchoolRole → request.schoolRole = undefined → 500
+- Error handler не обрабатывал plain object throws → 500 вместо 403
+
+**E2E тестирование (API уровень):**
+- ✅ GET /schools — каталог школ
+- ✅ GET /schools/:slug — деталь школы
+- ✅ GET /courses — список курсов с tenant isolation
+- ✅ GET /courses/:id — деталь курса
+- ✅ POST /course-payments/purchase — покупка (dev fallback), auto-enrollment
+- ✅ GET /course-payments/check/:courseId — проверка enrollment
+- ✅ GET /course-payments/my — мои платежи
+- ✅ GET /school-admin/dashboard — KPI stats
+- ✅ GET /school-admin/students — список студентов
+- ✅ GET /school-admin/finance — финансы
+- ✅ GET /school-admin/settings — настройки школы
+- ✅ Duplicate purchase → "Вы уже записаны"
+- ✅ Cross-tenant course access → "Курс не найден"
+- ✅ Non-admin access to school-admin → "Нет доступа к школе" (403)
+- ✅ Tenant isolation: school-a vs school-butler — данные изолированы
+
+**Тестовый пользователь:** e2e-test@levelup.ru (E2eTest123!), admin school-a
 
 ---
 
@@ -6045,11 +6091,13 @@ DNS: Selectel DNS (wildcard SSL через DNS-01 challenge)
     └── WSS ───→ VPS #2 (LiveKit :7880)
                    ├── Видеосессии (WebRTC SFU)
                    ├── coturn (TURN relay для NAT/VPN)
-                   └── Egress → MinIO на VPS #1
+                   ├── Egress → MinIO на VPS #2 (localhost:8193)
+                   └── Redis (координация LiveKit ↔ Egress)
 
 VPS #1 ←──→ VPS #2 (внутренняя связь):
   - API Gateway генерирует LiveKit-токены (HTTP → VPS #2:7880)
-  - LiveKit Egress записывает видео → MinIO (HTTP → VPS #1:9000)
+  - API Gateway читает записи из MinIO VPS #2 (HTTP → 111.88.113.71:8193, UFW: только VPS #1)
+  - LiveKit отправляет webhooks → https://levelup-platform.ru/api/livekit/webhook
   - Prometheus собирает метрики с node_exporter на VPS #2
 ```
 
@@ -6479,11 +6527,117 @@ docker exec -i supabase-db pg_restore -U postgres -d postgres --clean < backup_2
 
 ---
 
+---
+
+## Реализованные расширения LiveKit
+
+### Participant Webhooks (вебхуки участников)
+
+LiveKit отправляет webhook-события на `POST /api/recordings/webhook` при входе/выходе участников и старте/завершении комнат.
+
+**Обрабатываемые события:**
+- `participant_joined` — запись в `session_participant_events`, push-уведомление коучу
+- `participant_left` — запись в `session_participant_events`
+- `room_started` — обновление статуса сессии на `in_progress`
+- `room_finished` — обновление статуса сессии на `completed`
+
+**Таблица БД:** `session_participant_events` (id, session_id, user_id, participant_identity, event_type, room_name, created_at)
+
+**Безопасность:** HMAC-SHA256 валидация подписи через `WebhookReceiver` из `livekit-server-sdk`
+
+### In-Session Chat (чат внутри видеосессии)
+
+Peer-to-peer чат через LiveKit Data Channels — сообщения не проходят через сервер, минимальная задержка.
+
+**Реализация:**
+- Фронтенд: `ChatPanel` компонент с `useChat()` хуком из `@livekit/components-react`
+- Кнопка-тоггл в нижней панели управления VideoRoom
+- Боковая панель с историей сообщений и полем ввода
+
+### AI Транскрипция (архитектура)
+
+Подготовлена серверная архитектура для real-time транскрипции на русском языке через Yandex SpeechKit.
+
+**API эндпоинты:**
+- `POST /api/sessions/:sessionId/transcription/start` — запуск транскрипции
+- `POST /api/sessions/:sessionId/transcription/stop` — остановка
+- `GET /api/sessions/:sessionId/transcript` — получение сегментов
+- `POST /api/sessions/:sessionId/transcript/segment` — приём сегмента от STT-провайдера
+
+**Таблица БД:** `session_transcripts` (id, session_id, speaker_identity, speaker_name, text, start_sec, end_sec, confidence, provider, created_at)
+
+**Колонка:** `sessions.is_transcribing` (boolean) — флаг активной транскрипции
+
+**Env-переменные (placeholder):** `YANDEX_SPEECHKIT_API_KEY`, `YANDEX_SPEECHKIT_FOLDER_ID`
+
+**Фронтенд:** `TranscriptPanel` компонент с polling каждые 5 секунд, кнопка-тоггл в панели управления
+
 ## Что дальше (после MVP)
 
 После запуска MVP приоритизируйте по обратной связи от пользователей:
 
 1. **Фаза 3 — Ассоциация (~50.5 дней)**: членство, сертификация, учёт часов, события
 2. **Фаза 4 — Расширенные функции (~43 дня)**: AI-помощник, E2E-шифрование, CRM, магазин материалов
+3. **SIP-телефония (5 дней)**: LiveKit SIP Bridge + интеграция с Zadarma/MangoOffice для подключения к видеосессиям по телефону
+4. **E2EE видеосессий (3 дня)**: End-to-End шифрование через LiveKit E2EE API — ключи шифрования только у участников, сервер видит зашифрованный поток
 
 Полный roadmap — в файле [roadmap.md](./roadmap.md).
+
+---
+
+## Операционная справка
+
+Этот раздел содержит детальную операционную информацию, вынесенную из CLAUDE.md для экономии контекста.
+
+### Deploy Pattern (push to GitHub → pull on VPS)
+
+```bash
+# Local: push to GitHub
+rm -rf /tmp/levelup-push && git clone --depth 1 https://<PAT>@github.com/rlevch/levelup-platform.git /tmp/levelup-push
+rsync -av --exclude='.git' --exclude='node_modules' --exclude='dist' --exclude='.turbo' . /tmp/levelup-push/
+cd /tmp/levelup-push && git add -A && git -c user.name="Roman Levchenkov" -c user.email="rlevch@gmail.com" commit -m "message" && git push origin main && rm -rf /tmp/levelup-push
+
+# VPS: pull and rebuild
+ssh deploy@111.88.113.107 'cd ~/levelup-monorepo && git pull origin main'
+ssh deploy@111.88.113.107 'cd ~/levelup-monorepo/apps/platform && npm run build'
+ssh deploy@111.88.113.107 'cd ~/levelup-monorepo/services/api && set -a && source .env && set +a && pm2 restart api-gateway --update-env'
+```
+
+### Key Environment Variables (VPS #1)
+
+- `VITE_SUPABASE_URL=https://api.levelup-platform.ru`
+- `VITE_SUPABASE_ANON_KEY=eyJhbGciOiAiSFMyNTYiLCAidHlwIjogIkpXVCJ9.eyJyb2xlIjogImFub24iLCAiaXNzIjogInN1cGFiYXNlIiwgImlhdCI6IDE3NDMyOTI4MDAsICJleHAiOiAyMDU4NjUyODAwfQ.3K-ExjIOZyPQP58qrDfQ3tdYmBP8Ja2rXXQtGvg0ZLk`
+- `VITE_API_URL=https://api.levelup-platform.ru/api`
+- `CORS_ORIGIN=https://levelup-platform.ru,https://api.levelup-platform.ru,http://localhost:5173`
+- `LIVEKIT_API_KEY=API54a3ae4306b03070`
+- `LIVEKIT_API_SECRET=0C6qaQzoTnPsCw5V3lvJy1k5SYawx21Z0eJoD1Dd20E=`
+- `LIVEKIT_URL=wss://livekit.levelup-platform.ru`
+
+### Quick Call Architecture
+
+- **Flow**: Coach → QuickCallModal (select client) → `POST /api/sessions/quick-call` → creates session (status=confirmed, scheduled_at=now) + creates 'call' notification for client → redirect coach to lobby
+- **Client notification**: `IncomingCallBanner` in `DashboardLayout` polls `GET /api/notifications/incoming-call` every 3 seconds → shows floating banner with Accept/Decline + audio ringtone → Accept navigates to `/dashboard/video/:sessionId/lobby`
+- **API endpoints**:
+  - `POST /api/sessions/quick-call` — creates instant session + call notification (coach only)
+  - `GET /api/notifications/incoming-call` — returns latest unread call notification (<60s old)
+  - `POST /api/notifications/dismiss-call` — marks call notification as read
+- **DB**: `notifications` table, type='call', data contains `{session_id, coach_id, coach_name, created_at}`
+- **Components**: `QuickCallModal.tsx` (coach), `IncomingCallBanner.tsx` (client, in DashboardLayout)
+
+### Recording Consent Architecture
+
+- **Flow**: Coach clicks Record → `POST /sessions/:id/recording/request` → creates `recording_consents` row (status=pending) + auto-accepts for coach → all other participants see `RecordingConsentModal` → each responds via `POST /sessions/:id/recording/respond` → if all accept → status=approved, if any decline → status=declined
+- **DB tables**: `recording_consents` (request with status pending/approved/declined/cancelled) + `recording_consent_responses` (per-participant accept/decline)
+- **Polling**: `useRecordingStatus` polls `GET /sessions/:id/recording/status` every 3 seconds
+
+### Test Accounts
+
+- **Coach**: `test-coach-pilot@levelup-test.ru` / `TestCoach2026!` (Тестовый Коуч)
+- **Coach**: `test@levelup.ru` (Тест Тестов) — has sessions with testclient and Roman
+- **Client**: `rlevc@yandex.ru` (Роман Левченков)
+- **Client**: `testclient@levelup.ru` (Тестовый Клиент)
+
+### Additional References
+
+- **Docs repo**: `rlevch/LvlUP-ecosystem`
+- **iptables rule (VPS #1)**: `sudo iptables -I INPUT -p tcp --dport 3001 -s 172.16.0.0/12 -j ACCEPT`
